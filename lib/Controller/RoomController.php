@@ -12,6 +12,7 @@ use GuzzleHttp\Exception\ClientException;
 use OCA\DAV\CalDAV\TimezoneService;
 use OCA\Talk\Authenticator;
 use OCA\Talk\Capabilities;
+use OCA\Talk\Chat\ChatManager;
 use OCA\Talk\Config;
 use OCA\Talk\Events\AAttendeeRemovedEvent;
 use OCA\Talk\Events\BeforeRoomsFetchEvent;
@@ -314,7 +315,7 @@ class RoomController extends AEnvironmentAwareOCSController {
 			$this->sharePreloader->preloadShares($sharesInLastMessages);
 
 			$lastLocalMessages = array_filter(array_map(static fn (Room $room): ?IComment => !$room->isFederatedConversation() ? $room->getLastMessage() : null, $rooms));
-			$potentialThreads = array_map(static fn (IComment $lastMessage): int => (int)$lastMessage->getTopmostParentId() ?: (int)$lastMessage->getId(), $lastLocalMessages);
+			$potentialThreads = array_map(static fn (IComment $lastMessage): int => ChatManager::getThreadIdFromComment($lastMessage), $lastLocalMessages);
 
 			$threads = $this->threadService->preloadThreadsForConversationList($potentialThreads);
 		}

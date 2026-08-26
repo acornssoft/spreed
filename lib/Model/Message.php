@@ -195,7 +195,7 @@ class Message {
 		}
 
 		$id = (int)$this->getComment()->getId();
-		$threadId = (int)$this->getComment()->getTopmostParentId() ?: $id;
+		$threadId = ChatManager::getThreadIdFromComment($this->getComment());
 
 		$data = [
 			'id' => $id,

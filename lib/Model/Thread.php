@@ -30,6 +30,13 @@ use OCP\DB\Types;
 class Thread extends Entity {
 	public const THREAD_NONE = 0;
 	public const THREAD_CREATE = -1;
+	/**
+	 * acorns: 「スレッドに入れない」の明示的な意思表示。
+	 * THREAD_NONE (0) は sendMessage() の引数の既定値でもあるため、
+	 * 「送られていない」と「明示的に入れない」を区別できない。
+	 * Web クライアントの「返信」ボタンはこれを送る。
+	 */
+	public const THREAD_EXPLICIT_NONE = -2;
 	protected int $roomId = 0;
 	protected int $lastMessageId = 0;
 	protected int $numReplies = 0;

@@ -865,4 +865,21 @@ class ChatManagerTest extends TestCase {
 			[[json_encode(['parameters' => ['share' => 1]])], 1],
 		];
 	}
+
+	public static function dataGetThreadIdFromComment(): array {
+		return [
+			'topmost がある' => ['100', '42', 100],
+			'topmost が 0 なら自分の id' => ['0', '42', 42],
+			'topmost が空文字なら自分の id' => ['', '42', 42],
+		];
+	}
+
+	#[DataProvider('dataGetThreadIdFromComment')]
+	public function testGetThreadIdFromComment(string $topmostParentId, string $id, int $expected): void {
+		$comment = $this->createMock(IComment::class);
+		$comment->method('getTopmostParentId')->willReturn($topmostParentId);
+		$comment->method('getId')->willReturn($id);
+
+		$this->assertSame($expected, ChatManager::getThreadIdFromComment($comment));
+	}
 }

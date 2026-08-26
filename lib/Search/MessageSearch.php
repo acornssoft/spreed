@@ -289,7 +289,7 @@ class MessageSearch implements IProvider, IFilteringProvider {
 			'token' => $room->getToken(),
 			'_fragment' => 'message_' . $id,
 		];
-		$threadId = (int)$comment->getTopmostParentId() ?: (int)$comment->getId();
+		$threadId = ChatManager::getThreadIdFromComment($comment);
 		try {
 			$thread = $this->threadService->findByThreadId($room->getId(), $threadId);
 			$urlParams['threadId'] = $thread->getId();

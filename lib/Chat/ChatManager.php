@@ -412,7 +412,7 @@ class ChatManager {
 
 		if ($replyTo instanceof IComment) {
 			$comment->setParentId($replyTo->getId());
-			$threadId = (int)$replyTo->getTopmostParentId() ?: (int)$replyTo->getId();
+			$threadId = self::getThreadIdFromComment($replyTo);
 			$threadId = $this->threadService->validateThread($chat->getId(), $threadId) ? $threadId : Thread::THREAD_NONE;
 		} elseif ($threadId !== Thread::THREAD_NONE && $threadId !== Thread::THREAD_CREATE) {
 			$comment->setParentId((string)$threadId);
@@ -979,6 +979,19 @@ class ChatManager {
 		}
 
 		return $comment;
+	}
+
+	/**
+	 * acorns: コメントからスレッド ID を求める。
+	 *
+	 * lib/ に散っていた「topmost_parent_id ?: 自分の id」を 1 箇所に集約したもの。
+	 * Task 5 でここを metadata 権威に差し替える。差し替え時に触るのはこのメソッドだけ。
+	 *
+	 * Model\\Message や static クロージャなど ChatManager の DI を持たない
+	 * 呼び出し元からも使えるよう static にしてある。
+	 */
+	public static function getThreadIdFromComment(IComment $comment): int {
+		return (int)$comment->getTopmostParentId() ?: (int)$comment->getId();
 	}
 
 	public function getLastReadMessageFromLegacy(Room $chat, IUser $user): int {

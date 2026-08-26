@@ -297,7 +297,7 @@ class BotService {
 								} elseif (is_int($answer['reply'])) {
 									$replyTo = $chatManager->getParentComment($room, (string)$answer['reply']);
 								} elseif ($answer['thread'] === true) {
-									$threadId = (int)$comment->getTopmostParentId() ?: (int)$comment->getId();
+									$threadId = ChatManager::getThreadIdFromComment($comment);
 								} elseif ($answer['threadTitle'] !== null) {
 									$threadTitle = $answer['threadTitle'];
 								}

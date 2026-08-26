@@ -520,7 +520,7 @@ class Listener implements IEventListener {
 			return;
 		}
 
-		$threadId = (int)$comment->getTopmostParentId() ?: $comment->getId();
+		$threadId = ChatManager::getThreadIdFromComment($comment);
 		try {
 			$thread = $this->threadService->findByThreadId($room->getId(), (int)$threadId);
 		} catch (DoesNotExistException) {
@@ -575,7 +575,7 @@ class Listener implements IEventListener {
 
 		$thread = null;
 		if ($messageType === 'thread_created' || $messageType === 'thread_renamed') {
-			$threadId = (int)$comment->getTopmostParentId() ?: $comment->getId();
+			$threadId = ChatManager::getThreadIdFromComment($comment);
 			try {
 				$thread = $this->threadService->findByThreadId($room->getId(), (int)$threadId);
 			} catch (DoesNotExistException) {
@@ -656,7 +656,7 @@ class Listener implements IEventListener {
 		$comment = $event->getMessage();
 		$messageType = $event instanceof ReactionAddedEvent ? ChatManager::VERB_REACTION : 'reaction_revoked';
 
-		$threadId = (int)$comment->getTopmostParentId() ?: $comment->getId();
+		$threadId = ChatManager::getThreadIdFromComment($comment);
 		try {
 			$thread = $this->threadService->findByThreadId($room->getId(), (int)$threadId);
 		} catch (DoesNotExistException) {
