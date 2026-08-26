@@ -91,6 +91,8 @@
 			<step>OCA\Talk\Migration\CacheUserDisplayNames</step>
 			<step>OCA\Talk\Migration\FixLastReadMessageZero</step>
 			<step>OCA\Talk\Migration\RegenerateSignalingKeys</step>
+			<!-- acorns: スレッド所属を metadata 権威に移したことに伴うバックフィル -->
+			<step>OCA\Talk\Migration\BackfillThreadMetadata</step>
 		</post-migration>
 	</repair-steps>
 
