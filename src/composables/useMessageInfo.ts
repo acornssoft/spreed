@@ -82,7 +82,6 @@ export function useMessageInfo(item: MaybeRef<ChatMessage | undefined> = undefin
 	}
 
 	const {
-		isOneToOneConversation,
 		isConversationReadOnly,
 		isConversationModifiable,
 	} = useConversationInfo({ item: conversation })
@@ -97,8 +96,11 @@ export function useMessageInfo(item: MaybeRef<ChatMessage | undefined> = undefin
 			|| conversation.value.type === CONVERSATION.TYPE.ONE_TO_ONE_FORMER))
 
 	const isEditable = computed(() => {
+		// acorns: モデレーター分岐を落として「自分のメッセージのみ」にした。
+		// 分岐が消えると 1:1 の除外条件(isOneToOneConversation)も不要になる
+		// (元々 1:1 では他人のメッセージを触れなかったため、条件が単純化されるだけ)
 		if (!hasTalkFeature(message.value.token, 'edit-messages') || !isConversationModifiable.value || isObjectShare.value || message.value.systemMessage
-			|| ((!store.getters.isModerator || isOneToOneConversation.value) && !(isCurrentUserOwnMessage.value || isBotInOneToOne.value))) {
+			|| !(isCurrentUserOwnMessage.value || isBotInOneToOne.value)) {
 			return false
 		}
 
@@ -115,9 +117,10 @@ export function useMessageInfo(item: MaybeRef<ChatMessage | undefined> = undefin
 
 	const isFileShareWithoutCaption = computed(() => message.value.message === '{file}' && isFileShare.value)
 
+	// acorns: モデレーター分岐を落として「自分のメッセージのみ」にした
 	const isDeleteable = computed(() => (hasTalkFeature(message.value.token, 'delete-messages-unlimited') || (Date.now() - message.value.timestamp * 1000 < 6 * ONE_HOUR_IN_MS))
 		&& [MESSAGE.TYPE.COMMENT, MESSAGE.TYPE.VOICE_MESSAGE, MESSAGE.TYPE.RECORD_AUDIO, MESSAGE.TYPE.RECORD_VIDEO].includes(message.value.messageType)
-		&& (isCurrentUserOwnMessage.value || (!isOneToOneConversation.value && store.getters.isModerator))
+		&& isCurrentUserOwnMessage.value
 		&& isConversationModifiable.value)
 
 	const remoteServer = computed(() => {

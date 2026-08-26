@@ -122,7 +122,8 @@ describe('message actions', () => {
 		expect(result.isDeleteable.value).toBe(false)
 	})
 
-	test('other people messages are deleteable for moderators', () => {
+	// acorns: モデレーターでも他人のメッセージは削除できない
+	test('other people messages are NOT deleteable for moderators', () => {
 		// Arrange
 		message.value.actorId = 'another-user'
 		conversationProps.type = CONVERSATION.TYPE.GROUP
@@ -137,7 +138,7 @@ describe('message actions', () => {
 		const result = useMessageInfo(message)
 		// Assert
 		expect(result.isCurrentUserOwnMessage.value).toBe(false)
-		expect(result.isDeleteable.value).toBe(true)
+		expect(result.isDeleteable.value).toBe(false)
 	})
 
 	test('other people message is not deleteable in one to one conversations', () => {
@@ -182,7 +183,8 @@ describe('message actions', () => {
 		expect(result.isEditable.value).toBe(true)
 	})
 
-	test('moderator can edit other people messages', () => {
+	// acorns: モデレーターでも他人のメッセージは編集できない
+	test('moderator can NOT edit other people messages', () => {
 		// Arrange
 		message.value.actorId = 'another-user'
 		conversationProps.type = CONVERSATION.TYPE.GROUP
@@ -197,7 +199,7 @@ describe('message actions', () => {
 		const result = useMessageInfo(message)
 		// Assert
 		expect(result.isCurrentUserOwnMessage.value).toBe(false)
-		expect(result.isEditable.value).toBe(true)
+		expect(result.isEditable.value).toBe(false)
 	})
 
 	test('user can not edit other people messages', () => {

@@ -1400,11 +1400,10 @@ class ChatController extends AEnvironmentAwareOCSController {
 
 		// Special case for if the message is a bridged message, then the message is the bridge bot's message.
 		$isOwnMessage = $isOwnMessage || ($message->getActorType() === Attendee::ACTOR_BRIDGED && $attendee->getActorId() === MatterbridgeManager::BRIDGE_BOT_USERID);
-		if (!$isOwnMessage
-			&& (!$this->participant->hasModeratorPermissions(false)
-				|| $this->room->getType() === Room::TYPE_ONE_TO_ONE
-				|| $this->room->getType() === Room::TYPE_ONE_TO_ONE_FORMER)) {
-			// Actor is not a moderator or not the owner of the message
+		// acorns: モデレーター分岐を落として「自分のメッセージのみ」にした。
+		// 分岐が消えると 1:1 の除外条件も不要になる
+		if (!$isOwnMessage) {
+			// Actor is not the owner of the message
 			return new DataResponse(['error' => 'permission'], Http::STATUS_FORBIDDEN);
 		}
 
@@ -1510,11 +1509,9 @@ class ChatController extends AEnvironmentAwareOCSController {
 			&& str_starts_with($comment->getActorId(), Attendee::ACTOR_BOT_PREFIX)
 			&& ($this->room->getType() === Room::TYPE_ONE_TO_ONE
 				|| $this->room->getType() === Room::TYPE_ONE_TO_ONE_FORMER);
-		if (!($isOwnMessage || $isBotInOneToOne)
-			&& (!$this->participant->hasModeratorPermissions(false)
-				|| $this->room->getType() === Room::TYPE_ONE_TO_ONE
-				|| $this->room->getType() === Room::TYPE_ONE_TO_ONE_FORMER)) {
-			// Actor is not a moderator or not the owner of the message
+		// acorns: モデレーター分岐を落として「自分のメッセージのみ」にした
+		if (!($isOwnMessage || $isBotInOneToOne)) {
+			// Actor is not the owner of the message
 			return new DataResponse(['error' => 'permission'], Http::STATUS_FORBIDDEN);
 		}
 
