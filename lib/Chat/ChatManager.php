@@ -426,10 +426,31 @@ class ChatManager {
 		// comment
 		$comment->setVerb($verb);
 
-		if ($replyTo instanceof IComment) {
+		// acorns: スレッド所属の判定規則(spec §5.1)。
+		//   1. THREAD_EXPLICIT_NONE (-2) → スレッドに入れない(「返信」ボタンからの送信)
+		//   2. 正の値                    → それを使う
+		//   3. THREAD_CREATE (-1)        → 新規作成(後段の THREAD_CREATE 分岐で処理)
+		//   4. THREAD_NONE (0) + replyTo → 返信先の metadata を継承(古いクライアント互換)
+		//   5. それ以外                  → スレッドに入れない
+		if ($threadId === Thread::THREAD_EXPLICIT_NONE) {
+			$threadId = Thread::THREAD_NONE;
+			if ($replyTo instanceof IComment) {
+				$comment->setParentId($replyTo->getId());
+			}
+		} elseif ($replyTo instanceof IComment) {
 			$comment->setParentId($replyTo->getId());
-			$threadId = self::getThreadIdFromComment($replyTo);
-			$threadId = $this->threadService->validateThread($chat->getId(), $threadId) ? $threadId : Thread::THREAD_NONE;
+			if ($threadId === Thread::THREAD_NONE) {
+				// 規則 4: threadId を送ってこないクライアント(ネイティブアプリ等)の互換。
+				// 返信先が thread member(metadata あり)なら継承する。
+				// 起点自身も metadata を持つ(後段の THREAD_CREATE 分岐が自分の ID を書き戻す)ので、
+				// スレッド起点への引用返信も継承される。
+				$metaData = $replyTo->getMetaData() ?? [];
+				$inherited = (int)($metaData[Message::METADATA_THREAD_ID] ?? 0);
+				$threadId = $this->threadService->validateThread($chat->getId(), $inherited)
+					? $inherited
+					: Thread::THREAD_NONE;
+			}
+			// threadId が正の値ならそのまま使う(規則 2)
 		} elseif ($threadId !== Thread::THREAD_NONE && $threadId !== Thread::THREAD_CREATE) {
 			$comment->setParentId((string)$threadId);
 		}
