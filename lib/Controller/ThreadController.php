@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Talk\Controller;
 
 use OCA\Talk\Chat\ChatManager;
+use OCA\Talk\Chat\CommentsManager;
 use OCA\Talk\Chat\MessageParser;
 use OCA\Talk\Manager;
 use OCA\Talk\Middleware\Attribute\FederationSupported;
@@ -17,6 +18,7 @@ use OCA\Talk\Middleware\Attribute\RequireParticipant;
 use OCA\Talk\Middleware\Attribute\RequirePermission;
 use OCA\Talk\Middleware\Attribute\RequireReadWriteConversation;
 use OCA\Talk\Model\Attendee;
+use OCA\Talk\Model\Message;
 use OCA\Talk\Model\Thread;
 use OCA\Talk\Model\ThreadAttendee;
 use OCA\Talk\Participant;
@@ -45,6 +47,7 @@ class ThreadController extends AEnvironmentAwareOCSController {
 		IRequest $request,
 		private readonly Manager $manager,
 		private readonly ChatManager $chatManager,
+		private readonly CommentsManager $commentsManager,
 		private readonly Preloader $sharePreloader,
 		private readonly MessageParser $messageParser,
 		private readonly ParticipantService $participantService,
@@ -255,6 +258,106 @@ class ThreadController extends AEnvironmentAwareOCSController {
 			$threadId,
 		);
 
+		$list = $this->prepareListOfThreads([$thread]);
+		/** @var TalkThreadInfo $threadInfo */
+		$threadInfo = array_shift($list);
+		return new DataResponse($threadInfo);
+	}
+
+	/**
+	 * acorns: 既存メッセージをスレッド起点にする。
+	 *
+	 * upstream は「発言時にタイトルを付けて開始」しかできず
+	 * (ChatController::sendMessage の $threadTitle は $replyTo === 0 が条件)、
+	 * 既存メッセージを起点にする経路が無い。
+	 *
+	 * スレッド名はメッセージ本文から自動生成する(タイトル入力 UI は作らない)。
+	 *
+	 * 権限は全参加者。metadata 権威のため誰の発言もスレッドに動かないので、
+	 * renameThread(自分のメッセージかモデレーター)より緩めてよい。
+	 *
+	 * @param int $messageId スレッド起点にするメッセージの ID
+	 * @psalm-param non-negative-int $messageId
+	 * @return DataResponse<Http::STATUS_OK, TalkThreadInfo, array{}>|DataResponse<Http::STATUS_BAD_REQUEST, array{error: 'federation'|'reply'|'system'|'exists'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{error: 'message'}, array{}>
+	 *
+	 * 200: Thread created from the message
+	 * 400: Federated conversation / message is a reply / system message / thread already exists
+	 * 404: Message not found
+	 */
+	#[PublicPage]
+	#[RequireModeratorOrNoLobby]
+	#[RequireParticipant]
+	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/chat/{token}/threads/{messageId}', requirements: [
+		'apiVersion' => '(v1)',
+		'token' => '[a-z0-9]{4,30}',
+		'messageId' => '[0-9]+',
+	])]
+	public function createThreadFromMessage(int $messageId): DataResponse {
+		// federated 会話では拒否する。独自 API は相手ホストに存在しない
+		if ($this->room->isFederatedConversation()) {
+			return new DataResponse(['error' => 'federation'], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$comment = $this->chatManager->getComment($this->room, (string)$messageId);
+		} catch (NotFoundException) {
+			return new DataResponse(['error' => 'message'], Http::STATUS_NOT_FOUND);
+		}
+
+		// システムメッセージは起点にできない
+		if ($comment->getVerb() !== ChatManager::VERB_MESSAGE
+			&& $comment->getVerb() !== ChatManager::VERB_OBJECT_SHARED) {
+			return new DataResponse(['error' => 'system'], Http::STATUS_BAD_REQUEST);
+		}
+
+		// 返信を起点にはできない。topmost が他人を指すため構造が壊れる
+		if ($comment->getTopmostParentId() !== '0') {
+			return new DataResponse(['error' => 'reply'], Http::STATUS_BAD_REQUEST);
+		}
+
+		// 既にスレッドなら何もしない
+		if ($this->threadService->validateThread($this->room->getId(), $messageId)) {
+			return new DataResponse(['error' => 'exists'], Http::STATUS_BAD_REQUEST);
+		}
+
+		// タイトルは本文から自動生成。createThread が 203 文字で切る
+		$title = trim($comment->getMessage());
+		if ($title === '') {
+			$title = $this->l->t('Thread');
+		}
+
+		// 素の INSERT ではなく createThread を通す。
+		// findByThreadId が「スレッドが無い」ことも 15 分キャッシュするため、
+		// createThread の正のキャッシュ書き込みが必要
+		$thread = $this->threadService->createThread($this->room, $messageId, $title);
+
+		// 起点自身に metadata を書く。「起点も metadata を持つ」不変条件を保つ。
+		// ChatManager に updateComment() は無いので、pinMessage と同じく
+		// setMetaData → commentsManager->save の形を取る
+		$metaData = $comment->getMetaData() ?? [];
+		$metaData[Message::METADATA_THREAD_ID] = $messageId;
+		$metaData[Message::METADATA_THREAD_TITLE] = $thread->getName();
+		$comment->setMetaData($metaData);
+		$this->commentsManager->save($comment);
+
+		// thread_created は既存のシステムメッセージ。
+		// SendScheduledMessages.php と SystemMessage/Listener.php が発行し、
+		// Parser/SystemMessage.php が解釈する
+		$this->chatManager->addSystemMessage(
+			$this->room,
+			$this->participant,
+			$this->participant->getAttendee()->getActorType(),
+			$this->participant->getAttendee()->getActorId(),
+			json_encode(['message' => 'thread_created', 'parameters' => ['thread' => $messageId, 'title' => $thread->getName()]]),
+			$this->timeFactory->getDateTime(),
+			false,
+			null,
+			$comment,
+			true,
+			true,
+		);
+
+		// renameThread と同じ形で TalkThreadInfo を組み立てる
 		$list = $this->prepareListOfThreads([$thread]);
 		/** @var TalkThreadInfo $threadInfo */
 		$threadInfo = array_shift($list);
