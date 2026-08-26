@@ -191,6 +191,17 @@
 							{{ isSharedFolder ? t('spreed', 'Download folder') : t('spreed', 'Download file') }}
 						</NcActionLink>
 					</template>
+					<!-- acorns: 既存メッセージをスレッド起点にする -->
+					<NcActionButton
+						v-if="canCreateThreadFromMessage"
+						key="create-thread"
+						closeAfterClick
+						@click="createThread">
+						<template #icon>
+							<IconForumOutline :size="20" />
+						</template>
+						{{ t('spreed', 'Reply in thread') }}
+					</NcActionButton>
 					<template v-if="isThreadStarterMessage">
 						<NcActionSeparator />
 						<NcActionButton
@@ -459,6 +470,7 @@ import { useGetThreadId } from '../../../../../composables/useGetThreadId.ts'
 import { useMessageInfo } from '../../../../../composables/useMessageInfo.ts'
 import { ATTENDEE, CONVERSATION, MESSAGE, PARTICIPANT } from '../../../../../constants.ts'
 import { getTalkConfig, hasTalkFeature } from '../../../../../services/CapabilitiesManager.ts'
+import { createThreadFromMessage } from '../../../../../services/messagesService.ts'
 import { getMessageReminder, removeMessageReminder, setMessageReminder } from '../../../../../services/remindersService.js'
 import { useActorStore } from '../../../../../stores/actor.ts'
 import { useChatExtrasStore } from '../../../../../stores/chatExtras.ts'
@@ -753,6 +765,20 @@ export default {
 			return this.message.isReplyable && !this.isConversationReadOnly && (this.conversation.permissions & PARTICIPANT.PERMISSIONS.CHAT) !== 0
 		},
 
+		canCreateThreadFromMessage() {
+			// acorns: サーバー側の検証(ThreadController::createThreadFromMessage)と揃える。
+			// 押してエラーになる UI を避ける
+			return hasTalkFeature(this.message.token, 'threads')
+				&& !this.message.systemMessage // システムメッセージは起点にできない
+				&& !this.isDeletedMessage
+				&& !this.message.parent // 返信は起点にできない
+				&& !this.message.isThread // 既にスレッド
+				&& !this.isThreadStarterMessage
+				&& !this.conversation.remoteServer // federated 会話には独自 API が無い
+				&& !this.isConversationReadOnly
+				&& (this.conversation.permissions & PARTICIPANT.PERMISSIONS.CHAT) !== 0
+		},
+
 		isModerator() {
 			return this.$store.getters.isModerator
 		},
@@ -802,11 +828,12 @@ export default {
 	methods: {
 		t,
 		handleReply() {
-			if (!this.threadId && this.message.isThread && this.message.id === this.message.threadId) {
-				this.threadId = this.message.threadId
-			} else {
-				this.$emit('reply')
-			}
+			// acorns: upstream commit 3b957eb5b4 由来の分岐
+			// (スレッド起点への「返信」はスレッドビューにリダイレクトする) を意図的に外した。
+			// このフォークでは「返信」(チャンネルに引用) と「スレッドで返信」を区別するのが
+			// 要件 4 なので、起点への返信もチャンネル composer に引用をセットする。
+			// スレッドを開く導線は返信数ボタン(MessageBody.vue)と「Go to thread」アクションに残る。
+			this.$emit('reply')
 		},
 
 		async handlePrivateReply() {
@@ -987,6 +1014,20 @@ export default {
 
 		async renameThread() {
 			await this.chatExtrasStore.renameThread(this.message.token, this.message.threadId)
+		},
+
+		/**
+		 * acorns: 既存メッセージをスレッド起点にして全画面で開く(要件 7)。
+		 * タイトル入力は求めない(サーバーが本文から自動生成する)
+		 */
+		async createThread() {
+			try {
+				await createThreadFromMessage(this.message.token, this.message.id)
+				this.threadId = this.message.id
+			} catch (error) {
+				console.error(error)
+				showError(t('spreed', 'Failed to create the thread'))
+			}
 		},
 
 		editMessage() {

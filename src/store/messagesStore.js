@@ -1294,7 +1294,9 @@ const actions = {
 			const conversation = context.rootGetters.conversation(token)
 			const conversationLastMessageId = (conversation?.lastMessage && 'id' in conversation.lastMessage)
 				? conversation.lastMessage.id
-				: chatStore.getLastKnownId(token, { threadId: temporaryMessage.threadId })
+				// acorns: threadId=-2 (THREAD_EXPLICIT_NONE) は「チャンネルに残す返信」なので
+				// スレッドのブロックではなくチャンネルのブロックを見る
+				: chatStore.getLastKnownId(token, { threadId: temporaryMessage.threadId > 0 ? temporaryMessage.threadId : undefined })
 
 			const requestPayload = {
 				token,

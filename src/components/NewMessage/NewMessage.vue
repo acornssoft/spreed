@@ -1055,6 +1055,11 @@ export default {
 				if (this.threadId) {
 					temporaryMessagePayload.threadId = this.threadId
 					temporaryMessagePayload.isThread = true
+				} else if (this.parentMessage) {
+					// acorns: 「返信」ボタンからの送信はスレッドに入れない(要件 4)。
+					// THREAD_EXPLICIT_NONE = -2。THREAD_NONE (0) はサーバー側で
+					// 「送られていない」と区別できないため専用の値を使う
+					temporaryMessagePayload.threadId = -2
 				}
 				if (this.parentMessage) {
 					temporaryMessagePayload.parent = this.parentMessage
