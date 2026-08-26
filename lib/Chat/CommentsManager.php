@@ -127,9 +127,24 @@ class CommentsManager extends Manager {
 		}
 
 		if ($topmostParentId !== '') {
+			// acorns: スレッド所属の権威を metadata の thread_id に移した。
+			// topmost_parent_id で候補を絞ってから metadata で判定するので
+			// LIKE がフルスキャンにならない。
+			// "thread_id":123 が "thread_id":1234 に誤マッチしないよう
+			// 末尾の , と } の 2 パターンを OR する。
 			$query->andWhere($query->expr()->orX(
 				$query->expr()->eq('id', $query->createNamedParameter($topmostParentId)),
-				$query->expr()->eq('topmost_parent_id', $query->createNamedParameter($topmostParentId)),
+				$query->expr()->andX(
+					$query->expr()->eq('topmost_parent_id', $query->createNamedParameter($topmostParentId)),
+					$query->expr()->orX(
+						$query->expr()->like('meta_data', $query->createNamedParameter(
+							'%"thread_id":' . (int)$topmostParentId . ',%'
+						)),
+						$query->expr()->like('meta_data', $query->createNamedParameter(
+							'%"thread_id":' . (int)$topmostParentId . '}%'
+						)),
+					),
+				),
 			));
 		}
 
