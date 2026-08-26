@@ -13,6 +13,7 @@ use OCA\Talk\Chat\MessageParser;
 use OCA\Talk\Config;
 use OCA\Talk\Model\Attendee;
 use OCA\Talk\Model\BreakoutRoom;
+use OCA\Talk\Model\Message;
 use OCA\Talk\Model\Session;
 use OCA\Talk\Model\Thread;
 use OCA\Talk\Participant;
@@ -491,7 +492,9 @@ class RoomFormatter {
 
 		if ($thread === null && $isThreadInfoComplete === false) {
 			try {
-				$thread = $this->threadService->findByThreadId($room->getId(), (int)$lastMessage->getTopmostParentId());
+				// acorns: スレッド所属の権威は metadata の thread_id。無ければ 0 で findByThreadId はヒットしない
+				$metaData = $lastMessage->getMetaData() ?? [];
+				$thread = $this->threadService->findByThreadId($room->getId(), (int)($metaData[Message::METADATA_THREAD_ID] ?? 0));
 			} catch (DoesNotExistException) {
 			}
 		}

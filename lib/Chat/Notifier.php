@@ -11,6 +11,7 @@ namespace OCA\Talk\Chat;
 use OCA\Talk\Exceptions\ParticipantNotFoundException;
 use OCA\Talk\Files\Util;
 use OCA\Talk\Model\Attendee;
+use OCA\Talk\Model\Message;
 use OCA\Talk\Model\Session;
 use OCA\Talk\Model\ThreadAttendee;
 use OCA\Talk\Participant;
@@ -256,7 +257,9 @@ class Notifier {
 		}
 
 		$participants = $this->participantService->getParticipantsByNotificationLevel($chat, Participant::NOTIFY_ALWAYS);
-		$threadId = (int)$comment->getTopmostParentId();
+		// acorns: スレッド所属の権威は metadata の thread_id。無ければスレッドではない(0)
+		$metaData = $comment->getMetaData() ?? [];
+		$threadId = (int)($metaData[Message::METADATA_THREAD_ID] ?? 0);
 		/** @var array<int, ThreadAttendee> $threadAttendees */
 		$threadAttendees = [];
 		if ($threadId !== 0) {
@@ -684,7 +687,9 @@ class Notifier {
 			}
 
 			$notificationLevel = $attendee->getNotificationLevel();
-			$threadId = (int)$comment->getTopmostParentId();
+			// acorns: スレッド所属の権威は metadata の thread_id。無ければスレッドではない(0)
+			$metaData = $comment->getMetaData() ?? [];
+			$threadId = (int)($metaData[Message::METADATA_THREAD_ID] ?? 0);
 			if ($threadId !== 0) {
 				$threadAttendees = $this->threadService->findAttendeeByThreadIds($attendee, [$threadId]);
 				$threadAttendee = array_shift($threadAttendees);

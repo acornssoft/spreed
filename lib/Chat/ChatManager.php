@@ -323,7 +323,9 @@ class ChatManager {
 		$this->dispatcher->dispatchTyped($event);
 		try {
 			$this->commentsManager->save($comment);
-			$threadId = (int)$comment->getTopmostParentId();
+			// acorns: スレッド所属の権威は metadata の thread_id。無ければスレッドではない(0)
+			$metaData = $comment->getMetaData() ?? [];
+			$threadId = (int)($metaData[Message::METADATA_THREAD_ID] ?? 0);
 
 			// Update last_message
 			$this->roomService->setLastMessage($chat, $comment);
@@ -367,7 +369,9 @@ class ChatManager {
 		$this->dispatcher->dispatchTyped($event);
 		try {
 			$this->commentsManager->save($comment);
-			$threadId = (int)$comment->getTopmostParentId();
+			// acorns: スレッド所属の権威は metadata の thread_id。無ければスレッドではない(0)
+			$metaData = $comment->getMetaData() ?? [];
+			$threadId = (int)($metaData[Message::METADATA_THREAD_ID] ?? 0);
 
 			// Update last_message
 			$this->roomService->setLastMessage($chat, $comment);
@@ -996,14 +1000,18 @@ class ChatManager {
 	/**
 	 * acorns: コメントからスレッド ID を求める。
 	 *
-	 * lib/ に散っていた「topmost_parent_id ?: 自分の id」を 1 箇所に集約したもの。
-	 * Task 5 でここを metadata 権威に差し替える。差し替え時に触るのはこのメソッドだけ。
+	 * スレッド所属の権威は metadata の thread_id。
+	 * topmost_parent_id は引用返信でも立つため、スレッド所属の判定には使えない
+	 * (「返信」と「スレッドで返信」を区別できなくなる)。
+	 * metadata が無いメッセージは自分の id を返す(スレッドに属さないという契約)。
 	 *
-	 * Model\\Message や static クロージャなど ChatManager の DI を持たない
+	 * Model\Message や static クロージャなど ChatManager の DI を持たない
 	 * 呼び出し元からも使えるよう static にしてある。
 	 */
 	public static function getThreadIdFromComment(IComment $comment): int {
-		return (int)$comment->getTopmostParentId() ?: (int)$comment->getId();
+		$metaData = $comment->getMetaData() ?? [];
+		$threadId = (int)($metaData[Message::METADATA_THREAD_ID] ?? 0);
+		return $threadId ?: (int)$comment->getId();
 	}
 
 	public function getLastReadMessageFromLegacy(Room $chat, IUser $user): int {
