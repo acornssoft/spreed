@@ -208,6 +208,18 @@ class ChatManager {
 			$this->commentsManager->save($comment);
 			$threadId = (int)$comment->getTopmostParentId();
 
+			// acorns: システムメッセージは metadata を持たないので、
+			// getThreadIdFromComment() は自分の id を返す。
+			// スレッド所属は parent_id の連鎖(topmost_parent_id)から判定するしかない。
+			if ($threadId !== 0) {
+				$metaData = $comment->getMetaData() ?? [];
+				if (!isset($metaData[Message::METADATA_THREAD_ID])) {
+					$metaData[Message::METADATA_THREAD_ID] = $threadId;
+					$comment->setMetaData($metaData);
+					$this->commentsManager->save($comment);
+				}
+			}
+
 			if (!$shouldSkipLastMessageUpdate) {
 				// Update last_message
 				$this->roomService->setLastMessage($chat, $comment);
