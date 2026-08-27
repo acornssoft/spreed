@@ -135,7 +135,7 @@ class ThreadAttendeeMapper extends QBMapper {
 		$result = $query->executeQuery();
 		$counts = [];
 		while ($row = $result->fetch()) {
-			$counts[(int)$row['room_id']] = (int)$row['num_unread'];
+			$counts[(int)$row['room_id']] = max(0, (int)$row['num_unread']);
 		}
 		$result->closeCursor();
 		return $counts;
