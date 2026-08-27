@@ -319,10 +319,13 @@ export function useGetMessagesProvider() {
 				await chatExtrasStore.fetchSingleThread(token, contextThreadId.value)
 			}
 			const threadLastReadMessage = chatExtrasStore.getThread(token, contextThreadId.value)?.attendee.lastReadMessage ?? 0
-			store.dispatch('setVisualLastReadMessageId', { token, threadId: contextThreadId.value, id: threadLastReadMessage })
-			if (focusMessageId === null && threadLastReadMessage) {
-				// 未読の先頭から表示する(0=未追跡のときは従来どおり会話の既読位置)
-				contextMessageId.value = threadLastReadMessage
+			if (threadLastReadMessage) {
+				// 0(未追跡/未取得)は視覚既読に入れず null のまま残す
+				store.dispatch('setVisualLastReadMessageId', { token, threadId: contextThreadId.value, id: threadLastReadMessage })
+				if (focusMessageId === null) {
+					// 未読の先頭から表示する
+					contextMessageId.value = threadLastReadMessage
+				}
 			}
 		}
 

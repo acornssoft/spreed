@@ -873,10 +873,14 @@ export default {
 					return
 				}
 				const attendee = this.chatExtrasStore.getThread(this.token, this.threadId)?.attendee
+				if (!attendee?.lastReadMessage) {
+					// 0(未追跡/未取得)は視覚既読に入れず null のまま残す
+					return
+				}
 				this.$store.dispatch('setVisualLastReadMessageId', {
 					token: this.token,
 					threadId: this.threadId,
-					id: attendee?.lastReadMessage || 0,
+					id: attendee.lastReadMessage,
 				})
 				return
 			}

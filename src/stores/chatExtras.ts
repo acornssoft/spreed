@@ -48,7 +48,7 @@ type InitiateEditingMessagePayload = {
 }
 
 const FOLLOWED_THREADS_FETCH_LIMIT = 100
-const pendingFetchSingleThreadRequests = new Set<number>()
+const pendingFetchSingleThreadRequests = new Map<number, Promise<void>>()
 
 /**
  * Store for conversation extra chat features apart from messages
@@ -243,29 +243,34 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 
 	/**
 	 * Fetch a thread from server in given conversation
+	 * If a request for the same thread is already pending, returns the same promise
 	 *
 	 * @param token - conversation token
 	 * @param threadId - thread id to fetch
 	 */
-	async function fetchSingleThread(token: string, threadId: number) {
-		if (pendingFetchSingleThreadRequests.has(threadId)) {
-			// A request for this thread is already pending
-			return
+	function fetchSingleThread(token: string, threadId: number): Promise<void> {
+		const pendingRequest = pendingFetchSingleThreadRequests.get(threadId)
+		if (pendingRequest) {
+			// A request for this thread is already pending, wait for it
+			return pendingRequest
 		}
 
-		try {
-			pendingFetchSingleThreadRequests.add(threadId)
-			const response = await getSingleThreadForConversation(token, threadId)
-			addThread(token, response.data.ocs.data)
-			// FIXME: to be removed when chat relay provides thread data in original message
-			if (response.data.ocs.data.first) {
-				vuexStore.commit('addMessage', { token, message: response.data.ocs.data.first })
+		const request = (async () => {
+			try {
+				const response = await getSingleThreadForConversation(token, threadId)
+				addThread(token, response.data.ocs.data)
+				// FIXME: to be removed when chat relay provides thread data in original message
+				if (response.data.ocs.data.first) {
+					vuexStore.commit('addMessage', { token, message: response.data.ocs.data.first })
+				}
+			} catch (error) {
+				console.error('Error fetching thread:', error)
+			} finally {
+				pendingFetchSingleThreadRequests.delete(threadId)
 			}
-		} catch (error) {
-			console.error('Error fetching thread:', error)
-		} finally {
-			pendingFetchSingleThreadRequests.delete(threadId)
-		}
+		})()
+		pendingFetchSingleThreadRequests.set(threadId, request)
+		return request
 	}
 
 	/**
@@ -347,7 +352,12 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 		if (!hasTalkFeature(token, 'acorns-thread-read-marker')) {
 			return
 		}
-		const current = threads.value[token]?.[threadId]
+		let current = threads.value[token]?.[threadId]
+		if (!current) {
+			// acorns: store に無ければ先に取得して attendee を確定させる
+			await fetchSingleThread(token, threadId)
+			current = threads.value[token]?.[threadId]
+		}
 		if (current && current.attendee.lastReadMessage === 0) {
 			// 追跡対象でない(行が無い)。サーバも無視するので投げない
 			return

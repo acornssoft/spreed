@@ -3,13 +3,17 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore, useStore } from 'vuex'
 import BrowserStorage from '../../services/BrowserStorage.js'
 import { hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { EventBus } from '../../services/EventBus.ts'
-import { setThreadReadMarker } from '../../services/messagesService.ts'
+import {
+	getSingleThreadForConversation,
+	setThreadReadMarker,
+} from '../../services/messagesService.ts'
 import storeConfig from '../../store/storeConfig.js'
 import { generateOCSResponse } from '../../test-helpers.js'
 import { useChatExtrasStore } from '../chatExtras.ts'
@@ -30,6 +34,7 @@ vi.mock('../../services/CapabilitiesManager.ts', async (importOriginal) => ({
 vi.mock('../../services/messagesService.ts', async (importOriginal) => ({
 	...await importOriginal(),
 	setThreadReadMarker: vi.fn(),
+	getSingleThreadForConversation: vi.fn(),
 }))
 
 describe('chatExtrasStore', () => {
@@ -278,6 +283,46 @@ describe('chatExtrasStore', () => {
 			// 設定済みなら上書きしない
 			await chatExtrasStore.updateThreadReadMarker(token, 138, 199)
 			expect(vuexStore.getters.getVisualLastReadMessageId(token, 138)).toBe(150)
+		})
+
+		it('waits for the same pending request when fetching a thread twice', async () => {
+			let resolveRequest
+			getSingleThreadForConversation.mockReturnValue(new Promise((resolve) => {
+				resolveRequest = resolve
+			}))
+
+			const first = chatExtrasStore.fetchSingleThread(token, 138)
+			const second = chatExtrasStore.fetchSingleThread(token, 138)
+
+			// 2 回目は進行中の要求を待つ(API 応答前には解決しない)
+			let secondResolved = false
+			second.then(() => {
+				secondResolved = true
+			})
+			await flushPromises()
+			expect(secondResolved).toBe(false)
+
+			resolveRequest(generateOCSResponse({ payload: threadInfo() }))
+			await second
+
+			expect(secondResolved).toBe(true)
+			expect(getSingleThreadForConversation).toHaveBeenCalledTimes(1)
+			// 2 回目の await の解決後は getThread() が入っている
+			expect(chatExtrasStore.getThread(token, 138)).toBeDefined()
+
+			await first
+		})
+
+		it('fetches an unknown thread first and pins the visual marker before the optimistic update', async () => {
+			getSingleThreadForConversation.mockResolvedValue(generateOCSResponse({ payload: threadInfo() })) // lastReadMessage: 150
+			setThreadReadMarker.mockResolvedValue(generateOCSResponse({ payload: threadInfo({ lastReadMessage: 200, unreadMessages: 0 }) }))
+
+			await chatExtrasStore.updateThreadReadMarker(token, 138)
+
+			expect(getSingleThreadForConversation).toHaveBeenCalledWith(token, 138)
+			// 視覚既読は取得した(楽観更新前の)値で pin される
+			expect(vuexStore.getters.getVisualLastReadMessageId(token, 138)).toBe(150)
+			expect(chatExtrasStore.getThread(token, 138).attendee).toMatchObject({ lastReadMessage: 200, unreadMessages: 0 })
 		})
 	})
 })
