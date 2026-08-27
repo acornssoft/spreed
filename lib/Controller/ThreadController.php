@@ -331,6 +331,9 @@ class ThreadController extends AEnvironmentAwareOCSController {
 		// createThread の正のキャッシュ書き込みが必要
 		$thread = $this->threadService->createThread($this->room, $messageId, $title);
 
+		// acorns: 既存メッセージをスレッド化した人は起点まで既読(spec §4.2 の起点経路)
+		$this->threadService->setNotificationLevel($this->participant->getAttendee(), $thread->getId(), Participant::NOTIFY_DEFAULT, $messageId);
+
 		// 起点自身に metadata を書く。「起点も metadata を持つ」不変条件を保つ。
 		// ChatManager に updateComment() は無いので、pinMessage と同じく
 		// setMetaData → commentsManager->save の形を取る

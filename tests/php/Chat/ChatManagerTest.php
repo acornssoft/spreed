@@ -281,6 +281,51 @@ class ChatManagerTest extends TestCase {
 		$this->assertCommentEquals($commentExpected, $return);
 	}
 
+	public function testSendMessageToThreadEnsuresAttendeeWithOwnMessageId(): void {
+		$creationDateTime = new \DateTime();
+		$userId = 'testUser1';
+		$message = 'testMessage in thread';
+
+		$comment = $this->newCommentFromArray([
+			'id' => 140,
+			'actorType' => 'users',
+			'actorId' => $userId,
+			'creationDateTime' => $creationDateTime,
+			'message' => $message,
+		]);
+
+		$this->commentsManager->expects($this->once())
+			->method('create')
+			->with('users', $userId, 'chat', 1234)
+			->willReturn($comment);
+
+		$this->commentsManager->expects($this->once())
+			->method('save')
+			->with($comment);
+
+		$chat = $this->createMock(Room::class);
+		$chat->expects($this->any())
+			->method('getId')
+			->willReturn(1234);
+
+		$attendee = $this->createMock(Attendee::class);
+		$participant = $this->createMock(Participant::class);
+		$participant->method('getAttendee')
+			->willReturn($attendee);
+
+		$this->threadService->expects($this->once())
+			->method('updateLastMessageInfoAfterReply')
+			->with(138, 140, 1234)
+			->willReturn(true);
+
+		// acorns: スレッドへの返信は自分の発言まで既読(第 3 引数 = 新メッセージ id)
+		$this->threadService->expects($this->once())
+			->method('ensureIsThreadAttendee')
+			->with($attendee, 138, 140);
+
+		$this->chatManager->sendMessage($chat, $participant, 'users', $userId, $message, $creationDateTime, null, '', false, threadId: 138);
+	}
+
 	public function testGetHistory(): void {
 		$offset = 1;
 		$limit = 42;

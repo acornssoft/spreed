@@ -230,8 +230,9 @@ class ChatManager {
 					if ($isThread && $actorType === Attendee::ACTOR_USERS) {
 						try {
 							// Add to subscribed threads list
+							// acorns: 自分の発言までは既読
 							$participant = $this->participantService->getParticipant($chat, $actorId);
-							$this->threadService->ensureIsThreadAttendee($participant->getAttendee(), $threadId);
+							$this->threadService->ensureIsThreadAttendee($participant->getAttendee(), $threadId, (int)$comment->getId());
 						} catch (ParticipantNotFoundException) {
 						}
 					} elseif (!$isThread) {
@@ -503,7 +504,8 @@ class ChatManager {
 					$threadId = Thread::THREAD_NONE;
 				} elseif ($participant instanceof Participant) {
 					// Add to subscribed threads list
-					$this->threadService->ensureIsThreadAttendee($participant->getAttendee(), $threadId);
+					// acorns: 自分の返信までは既読
+					$this->threadService->ensureIsThreadAttendee($participant->getAttendee(), $threadId, $messageId);
 				}
 			}
 
@@ -534,6 +536,19 @@ class ChatManager {
 			}
 
 			$alreadyNotifiedUsers = $this->notifier->notifyMentionedUsers($chat, $comment, $alreadyNotifiedUsers, $silent, $participant, threadId: $threadId);
+			if ($threadId !== Thread::THREAD_NONE && $threadId !== Thread::THREAD_CREATE) {
+				// acorns: スレッド内でメンションされた人はスレッド未読の追跡対象になる(spec §4.2)
+				foreach ($alreadyNotifiedUsers as $notifiedUser) {
+					if (($notifiedUser['type'] ?? '') !== Attendee::ACTOR_USERS) {
+						continue;
+					}
+					try {
+						$mentioned = $this->participantService->getParticipantByActor($chat, Attendee::ACTOR_USERS, $notifiedUser['id']);
+						$this->threadService->ensureThreadAttendeeForMention($mentioned->getAttendee(), $threadId, $messageId);
+					} catch (ParticipantNotFoundException) {
+					}
+				}
+			}
 			if (!empty($alreadyNotifiedUsers)) {
 				$userIds = array_column($alreadyNotifiedUsers, 'id');
 				$this->participantService->markUsersAsMentioned($chat, Attendee::ACTOR_USERS, $userIds, (int)$comment->getId(), $usersDirectlyMentioned);
