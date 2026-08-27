@@ -71,6 +71,7 @@ class RoomFormatter {
 		bool $skipLastMessage = false,
 		?Thread $thread = null,
 		bool $isThreadInfoComplete = false,
+		?int $unreadThreads = null,
 	): array {
 		return $this->formatRoomV4(
 			$responseFormat,
@@ -83,6 +84,7 @@ class RoomFormatter {
 			$skipLastMessage,
 			$thread,
 			$isThreadInfoComplete,
+			$unreadThreads,
 		);
 	}
 
@@ -101,6 +103,7 @@ class RoomFormatter {
 		bool $skipLastMessage,
 		?Thread $thread = null,
 		bool $isThreadInfoComplete = false,
+		?int $unreadThreads = null,
 	): array {
 		$roomData = [
 			'id' => $room->getId(),
@@ -121,6 +124,7 @@ class RoomFormatter {
 			'lastActivity' => 0,
 			'lastReadMessage' => 0,
 			'unreadMessages' => 0,
+			'unreadThreads' => 0,
 			'unreadMention' => false,
 			'unreadMentionDirect' => false,
 			'isFavorite' => false,
@@ -330,6 +334,9 @@ class RoomFormatter {
 				} else {
 					$roomData['unreadMessages'] = $this->chatManager->getUnreadCount($room, $lastReadMessage);
 				}
+
+				// acorns: 追跡中スレッドの未読数。一覧からは RoomController が一括で渡す
+				$roomData['unreadThreads'] = $unreadThreads ?? ($this->threadService->countUnreadThreadsByRoom([$attendee->getId()])[$room->getId()] ?? 0);
 
 				$lastMention = $attendee->getLastMentionMessage();
 				$lastMentionDirect = $attendee->getLastMentionDirect();

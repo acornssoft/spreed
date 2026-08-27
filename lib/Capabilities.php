@@ -128,6 +128,7 @@ class Capabilities implements IPublicCapability {
 		'upcoming-reminders',
 		'sensitive-conversations',
 		'threads',
+		'acorns-thread-read-marker',
 		'pinned-messages',
 		'federated-shared-items',
 		'scheduled-messages',

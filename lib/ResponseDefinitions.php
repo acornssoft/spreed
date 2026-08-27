@@ -574,6 +574,8 @@ namespace OCA\Talk;
  *     unreadMentionDirect: bool,
  *     // Number of unread chat messages in the conversation (only available with `chat-v2` capability)
  *     unreadMessages: int,
+ *     // acorns: Number of threads with unread messages the user is tracked in (requires `acorns-thread-read-marker`)
+ *     unreadThreads: non-negative-int,
  *     // Flag if the conversation is archived by the user (only available with `archived-conversations-v2` capability)
  *     isArchived: bool,
  *     // Required capability: `important-conversations`

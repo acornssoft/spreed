@@ -320,6 +320,16 @@ class RoomController extends AEnvironmentAwareOCSController {
 			$threads = $this->threadService->preloadThreadsForConversationList($potentialThreads);
 		}
 
+		// acorns: 会話ごとの未読スレッド数を 1 クエリで取る
+		$attendeeIdsByRoom = [];
+		foreach ($rooms as $room) {
+			try {
+				$attendeeIdsByRoom[$room->getId()] = $this->participantService->getParticipant($room, $this->userId)->getAttendee()->getId();
+			} catch (ParticipantNotFoundException) {
+			}
+		}
+		$unreadThreadsByRoom = $this->threadService->countUnreadThreadsByRoom(array_values($attendeeIdsByRoom));
+
 		$return = [];
 		foreach ($rooms as $room) {
 			try {
@@ -330,6 +340,7 @@ class RoomController extends AEnvironmentAwareOCSController {
 					skipLastMessage: !$includeLastMessage,
 					thread: $threads[$room->getId()] ?? null,
 					isThreadInfoComplete: true,
+					unreadThreads: $unreadThreadsByRoom[$room->getId()] ?? 0,
 				);
 			} catch (ParticipantNotFoundException) {
 				// for example in case the room was deleted concurrently,
@@ -610,6 +621,7 @@ class RoomController extends AEnvironmentAwareOCSController {
 		bool $skipLastMessage = false,
 		?Thread $thread = null,
 		bool $isThreadInfoComplete = false,
+		?int $unreadThreads = null,
 	): array {
 		return $this->roomFormatter->formatRoom(
 			$this->getResponseFormat(),
@@ -622,6 +634,7 @@ class RoomController extends AEnvironmentAwareOCSController {
 			$skipLastMessage,
 			$thread,
 			$isThreadInfoComplete,
+			$unreadThreads,
 		);
 	}
 

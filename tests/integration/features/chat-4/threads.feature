@@ -398,3 +398,49 @@ Feature: chat-4/threads
     And user "participant1" sees the following recent threads in room "room" with 200
       | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
       | Message 1 | Message 1 | 1            | Reply 1       | 0                   | Message 1    | Reply 1     |
+
+  Scenario: acorns - Thread replies do not count as unread in the conversation
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant2" reads message "Message 1" in room "room" with 200
+    # スレッド返信: 会話の未読にならない
+    When user "participant1" sends reply "Thread reply" on message "Message 1" to room "room" with 201
+    Then user "participant2" is participant of the following rooms (v4)
+      | id   | unreadMessages | unreadThreads |
+      | room | 0              | 0             |
+    # 引用返信(threadId=-2): チャンネルに残るので未読になる
+    When user "participant1" sends reply "Quote reply" on message "Message 1" to room "room" without thread with 201
+    Then user "participant2" is participant of the following rooms (v4)
+      | id   | unreadMessages | unreadThreads |
+      | room | 1              | 0             |
+    # 新しい起点: 未読になる
+    When user "participant1" sends message "Message 2" to room "room" with 201
+    Then user "participant2" is participant of the following rooms (v4)
+      | id   | unreadMessages | unreadThreads |
+      | room | 2              | 0             |
+
+  Scenario: acorns - unreadThreads counts threads the user is tracked in
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant1" sends message "Message 2" to room "room" with 201
+    And user "participant1" creates thread from message "Message 2" in room "room" with 200
+    # participant2 は両スレッドに返信 → 追跡対象
+    And user "participant2" sends reply "Reply A" on message "Message 1" to room "room" with 201
+    And user "participant2" sends reply "Reply B" on message "Message 2" to room "room" with 201
+    When user "participant1" sends reply "Reply A2" on message "Message 1" to room "room" with 201
+    And user "participant1" sends reply "Reply B2" on message "Message 2" to room "room" with 201
+    Then user "participant2" is participant of the following rooms (v4)
+      | id   | unreadThreads |
+      | room | 2             |
+    # participant1 は自分の返信までは既読なので 0
+    And user "participant1" is participant of the following rooms (v4)
+      | id   | unreadThreads |
+      | room | 0             |

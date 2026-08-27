@@ -196,6 +196,7 @@
 
 ## 22
 * `threads` - Whether the chat supports threads
+* `acorns-thread-read-marker` - acorns: Whether per-thread read markers are tracked and room responses contain `unreadThreads`
 * `config => call => live-transcription` - Whether live transcription is supported in calls
 
 ## 22.0.10

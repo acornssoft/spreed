@@ -10,6 +10,7 @@ namespace OCA\Talk\Chat;
 
 use OC\Comments\Comment;
 use OC\Comments\Manager;
+use OCA\Talk\Model\Message;
 use OCP\Comments\IComment;
 use OCP\DB\Exception;
 use OCP\DB\QueryBuilder\ICompositeExpression;
@@ -246,6 +247,30 @@ class CommentsManager extends Manager {
 			->andWhere($query->expr()->gt('id', $query->createNamedParameter($lastReadMessage, IQueryBuilder::PARAM_INT)))
 			->andWhere($query->expr()->in('verb', $query->createNamedParameter([ChatManager::VERB_MESSAGE, ChatManager::VERB_OBJECT_SHARED], IQueryBuilder::PARAM_STR_ARRAY)))
 			->andWhere($this->threadMetaDataCondition($query, $threadId));
+
+		$result = $query->executeQuery();
+		$data = $result->fetch();
+		$result->closeCursor();
+		return (int)($data['num_messages'] ?? 0);
+	}
+
+	/**
+	 * acorns: 会話の未読数。スレッド返信(thread_id あり かつ parent_id <> 0)を除く。
+	 * 起点は parent_id = 0 なので残る。引用返信は thread_id を持たないので残る
+	 */
+	public function getNumberOfUnreadChannelMessages(int $roomId, int $lastReadMessage): int {
+		$query = $this->dbConn->getQueryBuilder();
+		$query->select($query->func()->count('id', 'num_messages'))
+			->from('comments')
+			->where($query->expr()->eq('object_type', $query->createNamedParameter('chat')))
+			->andWhere($query->expr()->eq('object_id', $query->createNamedParameter((string)$roomId)))
+			->andWhere($query->expr()->gt('id', $query->createNamedParameter($lastReadMessage, IQueryBuilder::PARAM_INT)))
+			->andWhere($query->expr()->in('verb', $query->createNamedParameter([ChatManager::VERB_MESSAGE, ChatManager::VERB_OBJECT_SHARED], IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($query->expr()->orX(
+				$query->expr()->eq('parent_id', $query->createNamedParameter(0, IQueryBuilder::PARAM_INT)),
+				$query->expr()->isNull('meta_data'),
+				$query->expr()->notLike('meta_data', $query->createNamedParameter('%"' . Message::METADATA_THREAD_ID . '"%')),
+			));
 
 		$result = $query->executeQuery();
 		$data = $result->fetch();

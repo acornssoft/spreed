@@ -431,8 +431,8 @@ class ChatManagerTest extends TestCase {
 			->willReturn(23);
 
 		$this->commentsManager->expects($this->once())
-			->method('getNumberOfCommentsWithVerbsForObjectSinceComment')
-			->with('chat', 23, 42, ['comment', 'object_shared']);
+			->method('getNumberOfUnreadChannelMessages')
+			->with(23, 42);
 
 		$this->chatManager->getUnreadCount($chat, 42);
 	}

@@ -590,6 +590,9 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 				if (isset($expectedRoom['unreadMessages'])) {
 					$data['unreadMessages'] = (int)$room['unreadMessages'];
 				}
+				if (isset($expectedRoom['unreadThreads'])) {
+					$data['unreadThreads'] = (int)$room['unreadThreads'];
+				}
 				if (isset($expectedRoom['unreadMention'])) {
 					$data['unreadMention'] = (int)$room['unreadMention'];
 				}

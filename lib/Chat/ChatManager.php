@@ -1068,7 +1068,7 @@ class ChatManager {
 		$key = $chat->getId() . '-' . $lastReadMessage;
 		$unreadCount = $this->unreadCountCache->get($key);
 		if ($unreadCount === null) {
-			$unreadCount = $this->commentsManager->getNumberOfCommentsWithVerbsForObjectSinceComment('chat', (string)$chat->getId(), $lastReadMessage, [self::VERB_MESSAGE, self::VERB_OBJECT_SHARED]);
+			$unreadCount = $this->commentsManager->getNumberOfUnreadChannelMessages($chat->getId(), $lastReadMessage);
 			$this->unreadCountCache->set($key, $unreadCount, 1800);
 		}
 		return $unreadCount;
