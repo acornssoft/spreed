@@ -6,6 +6,7 @@
 import type { AxiosRequestConfig } from '@nextcloud/axios'
 import type {
 	clearHistoryResponse,
+	createThreadFromMessageResponse,
 	deleteMessageResponse,
 	deleteScheduledMessageResponse,
 	editMessageParams,
@@ -396,14 +397,11 @@ async function renameThread(token: string, threadId: number, threadTitle: string
 /**
  * acorns: 既存メッセージをスレッド起点にする
  *
- * 応答は ThreadInfo で thread-get-thread と同じ形のため getThreadResponse を流用する
- * (openapi 型には独自エンドポイントがまだ無い)
- *
  * @param token The conversation token
  * @param messageId The id of the message to start a thread from
  * @param [options] Axios request options
  */
-async function createThreadFromMessage(token: string, messageId: number, options?: AxiosRequestConfig): getThreadResponse {
+async function createThreadFromMessage(token: string, messageId: number, options?: AxiosRequestConfig): createThreadFromMessageResponse {
 	return axios.post(generateOcsUrl('apps/spreed/api/v1/chat/{token}/threads/{messageId}', { token, messageId }), {}, options)
 }
 

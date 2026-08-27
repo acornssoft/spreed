@@ -2048,6 +2048,28 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/spreed/api/{apiVersion}/chat/{token}/threads/{messageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * acorns: 既存メッセージをスレッド起点にする。
+         * @description upstream は「発言時にタイトルを付けて開始」しかできず (ChatController::sendMessage の $threadTitle は $replyTo === 0 が条件)、 既存メッセージを起点にする経路が無い。
+         *     スレッド名はメッセージ本文から自動生成する(タイトル入力 UI は作らない)。
+         *     権限は全参加者。metadata 権威のため誰の発言もスレッドに動かないので、 renameThread(自分のメッセージかモデレーター)より緩めてよい。
+         */
+        post: operations["thread-create-thread-from-message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ocs/v2.php/apps/spreed/api/{apiVersion}/chat/{token}/threads/{messageId}/notify": {
         parameters: {
             query?: never;
@@ -13697,6 +13719,73 @@ export interface operations {
                             data: {
                                 /** @enum {string} */
                                 error: "thread";
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "thread-create-thread-from-message": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                token: string;
+                /** @description スレッド起点にするメッセージの ID */
+                messageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Thread created from the message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: components["schemas"]["ThreadInfo"];
+                        };
+                    };
+                };
+            };
+            /** @description Federated conversation / message is a reply / system message / thread already exists */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                /** @enum {string} */
+                                error: "federation" | "reply" | "system" | "exists";
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description Message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                /** @enum {string} */
+                                error: "message";
                             };
                         };
                     };

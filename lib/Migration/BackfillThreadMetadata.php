@@ -33,10 +33,12 @@ class BackfillThreadMetadata implements IRepairStep {
 	) {
 	}
 
+	#[\Override]
 	public function getName(): string {
 		return 'Backfill thread_id metadata for messages in existing threads (acorns)';
 	}
 
+	#[\Override]
 	public function run(IOutput $output): void {
 		$threads = $this->connection->getQueryBuilder();
 		$threads->select('id', 'room_id')->from('talk_threads');

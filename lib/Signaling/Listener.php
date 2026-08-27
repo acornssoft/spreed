@@ -522,7 +522,7 @@ class Listener implements IEventListener {
 
 		$threadId = ChatManager::getThreadIdFromComment($comment);
 		try {
-			$thread = $this->threadService->findByThreadId($room->getId(), (int)$threadId);
+			$thread = $this->threadService->findByThreadId($room->getId(), $threadId);
 		} catch (DoesNotExistException) {
 			$thread = null;
 		}
@@ -577,7 +577,7 @@ class Listener implements IEventListener {
 		if ($messageType === 'thread_created' || $messageType === 'thread_renamed') {
 			$threadId = ChatManager::getThreadIdFromComment($comment);
 			try {
-				$thread = $this->threadService->findByThreadId($room->getId(), (int)$threadId);
+				$thread = $this->threadService->findByThreadId($room->getId(), $threadId);
 			} catch (DoesNotExistException) {
 			}
 		}
@@ -658,7 +658,7 @@ class Listener implements IEventListener {
 
 		$threadId = ChatManager::getThreadIdFromComment($comment);
 		try {
-			$thread = $this->threadService->findByThreadId($room->getId(), (int)$threadId);
+			$thread = $this->threadService->findByThreadId($room->getId(), $threadId);
 		} catch (DoesNotExistException) {
 			$thread = null;
 		}
