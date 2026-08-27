@@ -6,7 +6,10 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BrowserStorage from '../../services/BrowserStorage.js'
+import { hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { EventBus } from '../../services/EventBus.ts'
+import { setThreadReadMarker } from '../../services/messagesService.ts'
+import { generateOCSResponse } from '../../test-helpers.js'
 import { useChatExtrasStore } from '../chatExtras.ts'
 
 vi.mock('vuex', async () => {
@@ -16,6 +19,16 @@ vi.mock('vuex', async () => {
 		useStore: vi.fn(),
 	}
 })
+
+vi.mock('../../services/CapabilitiesManager.ts', async (importOriginal) => ({
+	...await importOriginal(),
+	hasTalkFeature: vi.fn(() => true),
+}))
+
+vi.mock('../../services/messagesService.ts', async (importOriginal) => ({
+	...await importOriginal(),
+	setThreadReadMarker: vi.fn(),
+}))
 
 describe('chatExtrasStore', () => {
 	const token = 'TOKEN'
@@ -202,6 +215,50 @@ describe('chatExtrasStore', () => {
 
 			// Assert
 			expect(chatExtrasStore.getChatEditInput('token-1')).toEqual('')
+		})
+	})
+
+	describe('thread read marker', () => {
+		const threadInfo = (attendee) => ({
+			thread: { id: 138, roomToken: token, title: 't', lastMessageId: 200, numReplies: 3, lastActivity: 1 },
+			attendee: { notificationLevel: 0, lastReadMessage: 150, unreadMessages: 2, ...attendee },
+			first: null,
+			last: null,
+		})
+
+		beforeEach(() => {
+			hasTalkFeature.mockReturnValue(true) // 'acorns-thread-read-marker'
+		})
+
+		it('updates read marker optimistically and from the response', async () => {
+			chatExtrasStore.addThread(token, threadInfo())
+			setThreadReadMarker.mockResolvedValue(generateOCSResponse({ payload: threadInfo({ lastReadMessage: 200, unreadMessages: 0 }) }))
+
+			await chatExtrasStore.updateThreadReadMarker(token, 138)
+
+			expect(setThreadReadMarker).toHaveBeenCalledWith(token, 138, undefined)
+			expect(chatExtrasStore.getThread(token, 138).attendee).toMatchObject({ lastReadMessage: 200, unreadMessages: 0 })
+		})
+
+		it('does nothing without the capability', async () => {
+			hasTalkFeature.mockReturnValue(false)
+			chatExtrasStore.addThread(token, threadInfo())
+
+			await chatExtrasStore.updateThreadReadMarker(token, 138)
+
+			expect(setThreadReadMarker).not.toHaveBeenCalled()
+		})
+
+		it('bumps unread only for tracked threads', () => {
+			chatExtrasStore.addThread(token, threadInfo())
+			chatExtrasStore.addThread(token, { ...threadInfo({ lastReadMessage: 0, unreadMessages: 0 }), thread: { ...threadInfo().thread, id: 139 } })
+
+			chatExtrasStore.bumpThreadUnread(token, 138)
+			chatExtrasStore.bumpThreadUnread(token, 139)
+
+			expect(chatExtrasStore.getThread(token, 138).attendee.unreadMessages).toBe(3)
+			expect(chatExtrasStore.getThread(token, 139).attendee.unreadMessages).toBe(0)
+			expect(chatExtrasStore.getUnreadThreadsCount(token)).toBe(1)
 		})
 	})
 })

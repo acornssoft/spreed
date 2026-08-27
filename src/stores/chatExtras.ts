@@ -22,6 +22,7 @@ import { useStore } from 'vuex'
 import ConfirmDialog from '../components/UIShared/ConfirmDialog.vue'
 import { PARTICIPANT } from '../constants.ts'
 import BrowserStorage from '../services/BrowserStorage.js'
+import { hasTalkFeature } from '../services/CapabilitiesManager.ts'
 import { EventBus } from '../services/EventBus.ts'
 import {
 	deleteScheduledMessage as deleteScheduledMessageApi,
@@ -33,6 +34,7 @@ import {
 	renameThread as renameThreadApi,
 	scheduleMessage as scheduleMessageApi,
 	setThreadNotificationLevel as setThreadNotificationLevelApi,
+	setThreadReadMarker as setThreadReadMarkerApi,
 	summarizeChat,
 } from '../services/messagesService.ts'
 import { parseMentions, parseSpecialSymbols } from '../utils/textParse.ts'
@@ -332,6 +334,58 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 		} catch (error) {
 			console.error('Error updating thread notification level:', error)
 		}
+	}
+
+	/**
+	 * acorns: スレッドの既読位置を進める。会話の既読は触らない(spec §5.6)
+	 *
+	 * @param token - conversation token
+	 * @param threadId - thread id to update
+	 * @param lastReadMessage - message id to mark as read; omit for the last message of the thread
+	 */
+	async function updateThreadReadMarker(token: string, threadId: number, lastReadMessage?: number) {
+		if (!hasTalkFeature(token, 'acorns-thread-read-marker')) {
+			return
+		}
+		const current = threads.value[token]?.[threadId]
+		if (current && current.attendee.lastReadMessage === 0) {
+			// 追跡対象でない(行が無い)。サーバも無視するので投げない
+			return
+		}
+		if (current) {
+			// 楽観更新
+			current.attendee.lastReadMessage = lastReadMessage ?? current.thread.lastMessageId
+			current.attendee.unreadMessages = 0
+		}
+		try {
+			const response = await setThreadReadMarkerApi(token, threadId, lastReadMessage)
+			addThread(token, response.data.ocs.data)
+		} catch (error) {
+			console.error('Error updating thread read marker:', error)
+		}
+	}
+
+	/**
+	 * acorns: 新着スレッド返信でローカルの未読数を 1 増やす(次の一覧ポーリングまでのつなぎ)
+	 *
+	 * @param token - conversation token
+	 * @param threadId - thread id to bump
+	 */
+	function bumpThreadUnread(token: string, threadId: number) {
+		const current = threads.value[token]?.[threadId]
+		if (!current || current.attendee.lastReadMessage === 0) {
+			return
+		}
+		current.attendee.unreadMessages += 1
+	}
+
+	/**
+	 * acorns: store 内で未読のあるスレッド数
+	 *
+	 * @param token - conversation token
+	 */
+	function getUnreadThreadsCount(token: string): number {
+		return Object.values(threads.value[token] ?? {}).filter((info) => info.attendee.unreadMessages > 0).length
 	}
 
 	/**
@@ -872,6 +926,9 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 		fetchRecentThreadsList,
 		fetchFollowedThreadsList,
 		setThreadNotificationLevel,
+		updateThreadReadMarker,
+		bumpThreadUnread,
+		getUnreadThreadsCount,
 		updateThread,
 		updateThreadTitle,
 		renameThread,

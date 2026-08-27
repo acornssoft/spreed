@@ -448,6 +448,9 @@ export type setThreadNotificationLevelParams = operations['thread-set-notificati
 export type setThreadNotificationLevelResponse = ApiResponse<operations['thread-set-notification-level']['responses'][200]['content']['application/json']>
 export type renameThreadParams = operations['thread-rename-thread']['requestBody']['content']['application/json']
 export type renameThreadResponse = ApiResponse<operations['thread-rename-thread']['responses'][200]['content']['application/json']>
+// acorns: スレッドの既読位置を進める独自エンドポイント
+export type setThreadReadMarkerParams = Required<operations['thread-set-read-marker']>['requestBody']['content']['application/json']
+export type setThreadReadMarkerResponse = ApiResponse<operations['thread-set-read-marker']['responses'][200]['content']['application/json']>
 // acorns: 既存メッセージをスレッド起点にする独自エンドポイント
 export type createThreadFromMessageResponse = ApiResponse<operations['thread-create-thread-from-message']['responses'][200]['content']['application/json']>
 

@@ -39,6 +39,8 @@ import type {
 	setReadMarkerResponse,
 	setThreadNotificationLevelParams,
 	setThreadNotificationLevelResponse,
+	setThreadReadMarkerParams,
+	setThreadReadMarkerResponse,
 	summarizeChatParams,
 	summarizeChatResponse,
 	unpinMessageResponse,
@@ -381,6 +383,20 @@ async function setThreadNotificationLevel(token: string, messageId: number, leve
 }
 
 /**
+ * acorns: スレッドの既読位置を進める (requires `acorns-thread-read-marker`)
+ *
+ * @param token conversation token
+ * @param threadId thread id
+ * @param [lastReadMessage] message id to mark as read; omit for the last message of the thread
+ * @param [options] Axios request options
+ */
+async function setThreadReadMarker(token: string, threadId: number, lastReadMessage?: number, options?: AxiosRequestConfig): setThreadReadMarkerResponse {
+	return axios.post(generateOcsUrl('apps/spreed/api/v1/chat/{token}/threads/{threadId}/read', { token, threadId }), {
+		lastReadMessage,
+	} as setThreadReadMarkerParams, options)
+}
+
+/**
  * Fetch a thread for given conversation and thread id
  *
  * @param token the conversation token
@@ -508,6 +524,7 @@ export {
 	scheduleMessage,
 	setConversationUnread,
 	setThreadNotificationLevel,
+	setThreadReadMarker,
 	summarizeChat,
 	unpinMessage,
 	updateLastReadMessage,
