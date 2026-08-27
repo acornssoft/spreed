@@ -43,6 +43,33 @@ type GetMessagesContext = {
 	getNewMessages: (token: string, includeLastKnown: boolean) => Promise<void>
 }
 
+type VisualReadMarkerStore = {
+	getters: { getVisualLastReadMessageId: (token: string, threadId?: number) => number | null }
+	dispatch: (type: string, payload: { token: string, threadId: number, id: number }) => unknown
+}
+
+/**
+ * acorns: スレッドの視覚既読(区切り線の位置)を未設定のときだけ設定する。
+ * 既に設定済みならその値をそのまま返す(既読を進めても区切り線は開いた時点の位置で固定)
+ *
+ * @param store vuex store
+ * @param token conversation token
+ * @param threadId thread id
+ * @param lastReadMessage the thread's last read message id known at this point (0 = untracked/unknown)
+ * @return the visual last read message id to use as the initial view position (0 when none)
+ */
+export function pinThreadVisualLastReadMessageId(store: VisualReadMarkerStore, token: string, threadId: number, lastReadMessage: number): number {
+	const existing = store.getters.getVisualLastReadMessageId(token, threadId)
+	if (existing !== null) {
+		return existing
+	}
+	if (lastReadMessage) {
+		store.dispatch('setVisualLastReadMessageId', { token, threadId, id: lastReadMessage })
+		return lastReadMessage
+	}
+	return 0
+}
+
 const GET_MESSAGES_CONTEXT_KEY: InjectionKey<GetMessagesContext> = Symbol.for('GET_MESSAGES_CONTEXT')
 
 let pollingTimeout: NodeJS.Timeout | undefined
@@ -319,13 +346,11 @@ export function useGetMessagesProvider() {
 				await chatExtrasStore.fetchSingleThread(token, contextThreadId.value)
 			}
 			const threadLastReadMessage = chatExtrasStore.getThread(token, contextThreadId.value)?.attendee.lastReadMessage ?? 0
-			if (threadLastReadMessage) {
-				// 0(未追跡/未取得)は視覚既読に入れず null のまま残す
-				store.dispatch('setVisualLastReadMessageId', { token, threadId: contextThreadId.value, id: threadLastReadMessage })
-				if (focusMessageId === null) {
-					// 未読の先頭から表示する
-					contextMessageId.value = threadLastReadMessage
-				}
+			// 未設定のときだけ設定する。設定済み(updateThreadReadMarker が pin 済み等)ならその値を使う
+			const visualLastReadMessageId = pinThreadVisualLastReadMessageId(store, token, contextThreadId.value, threadLastReadMessage)
+			if (visualLastReadMessageId && focusMessageId === null) {
+				// 未読の先頭から表示する
+				contextMessageId.value = visualLastReadMessageId
 			}
 		}
 
