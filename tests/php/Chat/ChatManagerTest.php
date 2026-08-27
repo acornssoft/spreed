@@ -868,16 +868,22 @@ class ChatManagerTest extends TestCase {
 
 	public static function dataGetThreadIdFromComment(): array {
 		return [
-			'topmost がある' => ['100', '42', 100],
-			'topmost が 0 なら自分の id' => ['0', '42', 42],
-			'topmost が空文字なら自分の id' => ['', '42', 42],
+			// スレッド所属の権威は meta_data の thread_id。topmost_parent_id は見ない
+			'metadata に thread_id がある' => [['thread_id' => 100], '42', 100],
+			'thread_id が文字列でも int になる' => [['thread_id' => '100'], '42', 100],
+			'metadata が null なら自分の id' => [null, '42', 42],
+			'metadata が空なら自分の id' => [[], '42', 42],
+			'thread_id が 0 なら自分の id' => [['thread_id' => 0], '42', 42],
+			// topmost_parent_id があっても metadata が無ければ自分の id を返す
+			// (フォークで権威を移した結果。既存の引用返信がスレッドに入らない根拠)
+			'metadata 無し + 他キーのみ' => [['can_mention_all' => true], '42', 42],
 		];
 	}
 
 	#[DataProvider('dataGetThreadIdFromComment')]
-	public function testGetThreadIdFromComment(string $topmostParentId, string $id, int $expected): void {
+	public function testGetThreadIdFromComment(?array $metaData, string $id, int $expected): void {
 		$comment = $this->createMock(IComment::class);
-		$comment->method('getTopmostParentId')->willReturn($topmostParentId);
+		$comment->method('getMetaData')->willReturn($metaData);
 		$comment->method('getId')->willReturn($id);
 
 		$this->assertSame($expected, ChatManager::getThreadIdFromComment($comment));
