@@ -1209,7 +1209,12 @@ const actions = {
 					if (actorId !== message.actorId || actorType !== message.actorType) {
 						// acorns: スレッド返信(起点以外)は会話の未読に数えない
 						if (message.isThread && message.id !== message.threadId) {
-							useChatExtrasStore().bumpThreadUnread(token, message.threadId)
+							const chatExtrasStore = useChatExtrasStore()
+							chatExtrasStore.bumpThreadUnread(token, message.threadId)
+							// acorns: スレッド未読の変化を会話の unreadThreads に即時反映する(spec §6.5)
+							if (conversation) {
+								context.commit('updateUnreadMessages', { token, unreadThreads: chatExtrasStore.getUnreadThreadsCount(token) })
+							}
 						} else {
 							countNewMessages++
 						}

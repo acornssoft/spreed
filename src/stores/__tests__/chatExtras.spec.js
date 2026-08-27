@@ -271,6 +271,17 @@ describe('chatExtrasStore', () => {
 			expect(chatExtrasStore.getUnreadThreadsCount(token)).toBe(1)
 		})
 
+		it('reflects recomputed unread threads count into the conversation store', async () => {
+			vuexStore.commit('addConversation', { token, unreadThreads: 1 })
+			chatExtrasStore.addThread(token, threadInfo()) // unreadMessages: 2
+			setThreadReadMarker.mockResolvedValue(generateOCSResponse({ payload: threadInfo({ lastReadMessage: 200, unreadMessages: 0 }) }))
+
+			await chatExtrasStore.updateThreadReadMarker(token, 138)
+
+			// 他に未読スレッドが無いので会話の unreadThreads は 0 になる
+			expect(vuexStore.getters.conversation(token).unreadThreads).toBe(0)
+		})
+
 		it('pins the visual read marker to the value before the optimistic update', async () => {
 			chatExtrasStore.addThread(token, threadInfo()) // lastReadMessage: 150, lastMessageId: 200
 			setThreadReadMarker.mockResolvedValue(generateOCSResponse({ payload: threadInfo({ lastReadMessage: 200, unreadMessages: 0 }) }))

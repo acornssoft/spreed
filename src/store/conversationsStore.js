@@ -245,7 +245,7 @@ const mutations = {
 		state.conversations[token].lastMessage = lastMessage
 	},
 
-	updateUnreadMessages(state, { token, unreadMessages, unreadMention, unreadMentionDirect }) {
+	updateUnreadMessages(state, { token, unreadMessages, unreadMention, unreadMentionDirect, unreadThreads }) {
 		if (unreadMessages !== undefined) {
 			state.conversations[token].unreadMessages = unreadMessages
 		}
@@ -254,6 +254,9 @@ const mutations = {
 		}
 		if (unreadMentionDirect !== undefined) {
 			state.conversations[token].unreadMentionDirect = unreadMentionDirect
+		}
+		if (unreadThreads !== undefined) {
+			state.conversations[token].unreadThreads = unreadThreads
 		}
 	},
 
@@ -906,7 +909,10 @@ const actions = {
 
 		// acorns: スレッド返信は会話の未読に数えない(spec §5.2)。スレッド側は chatExtras が持つ
 		if (threadId) {
-			useChatExtrasStore().bumpThreadUnread(token, parseInt(threadId, 10))
+			const chatExtrasStore = useChatExtrasStore()
+			chatExtrasStore.bumpThreadUnread(token, parseInt(threadId, 10))
+			// acorns: スレッド未読の変化を会話の unreadThreads に即時反映する(spec §6.5)
+			commit('updateUnreadMessages', { token, unreadThreads: chatExtrasStore.getUnreadThreadsCount(token) })
 			return
 		}
 

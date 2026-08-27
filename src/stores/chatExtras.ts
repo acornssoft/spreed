@@ -370,6 +370,10 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 			// 楽観更新
 			current.attendee.lastReadMessage = lastReadMessage ?? current.thread.lastMessageId
 			current.attendee.unreadMessages = 0
+			// acorns: スレッド未読の変化を会話の unreadThreads に即時反映する(spec §6.5)
+			if (vuexStore.getters.conversation(token)) {
+				vuexStore.commit('updateUnreadMessages', { token, unreadThreads: getUnreadThreadsCount(token) })
+			}
 		}
 		try {
 			const response = await setThreadReadMarkerApi(token, threadId, lastReadMessage)

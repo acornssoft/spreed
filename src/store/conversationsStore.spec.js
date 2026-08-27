@@ -1326,11 +1326,36 @@ describe('conversationsStore', () => {
 				notification: generateNotification(testToken + '/201/138'),
 			})
 
-			expect(updateUnreadMessagesMutation).not.toHaveBeenCalled()
+			expect(updateUnreadMessagesMutation).not.toHaveBeenCalledWith(
+				expect.anything(),
+				expect.objectContaining({ unreadMessages: expect.anything() }),
+			)
 			expect(bumpThreadUnreadSpy).toHaveBeenCalledWith(testToken, 138)
 			// lastMessage and activity are still updated
 			expect(store.getters.conversation(testToken).lastMessage.id).toBe(201)
 			expect(store.getters.conversation(testToken).lastActivity).toBe(1672617600)
+		})
+
+		test('recomputes unreadThreads for a thread reply notification', async () => {
+			const threadInfo = (id, unreadMessages) => ({
+				thread: { id, roomToken: testToken, title: 't', lastMessageId: 200, numReplies: 3, lastActivity: 1 },
+				attendee: { notificationLevel: 0, lastReadMessage: 100, unreadMessages },
+				first: null,
+				last: null,
+			})
+			chatExtrasStore.addThread(testToken, threadInfo(138, 0))
+			chatExtrasStore.addThread(testToken, threadInfo(139, 2))
+
+			await store.dispatch('updateConversationLastMessageFromNotification', {
+				notification: generateNotification(testToken + '/201/138'),
+			})
+
+			// thread 138 is bumped to 1 unread; unread threads (138, 139) are reflected on the conversation
+			expect(chatExtrasStore.getThread(testToken, 138).attendee.unreadMessages).toBe(1)
+			expect(updateUnreadMessagesMutation).toHaveBeenCalledWith(expect.anything(), {
+				token: testToken,
+				unreadThreads: 2,
+			})
 		})
 	})
 })
