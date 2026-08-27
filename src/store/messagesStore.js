@@ -345,8 +345,11 @@ const mutations = {
 	 * @param {string} token Token of the conversation
 	 */
 	purgeMessagesStore(state, token) {
-		if (state.visualLastReadMessageId[token]) {
-			delete state.visualLastReadMessageId[token]
+		// Delete visual last read markers of the conversation and its threads
+		for (const key of Object.keys(state.visualLastReadMessageId)) {
+			if (key === token || key.startsWith(token + ':')) {
+				delete state.visualLastReadMessageId[key]
+			}
 		}
 		if (state.messages[token]) {
 			delete state.messages[token]

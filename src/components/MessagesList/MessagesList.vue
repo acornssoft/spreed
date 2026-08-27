@@ -258,6 +258,10 @@ export default {
 			return this.$store.getters.getVisualLastReadMessageId(this.token, this.threadId)
 		},
 
+		threadAttendeeLastReadMessage() {
+			return this.threadId ? this.chatExtrasStore.getThread(this.token, this.threadId)?.attendee.lastReadMessage : undefined
+		},
+
 		/**
 		 * Gets the messages array. We need this because the DynamicScroller needs an array to
 		 * loop through.
@@ -405,6 +409,20 @@ export default {
 			const newGroups = this.prepareMessagesGroups(this.messagesList)
 			this.softUpdateByDateGroups(this.messagesGroupedByDateByAuthor, newGroups)
 			this.isUnreadMarkerSeen = false
+		},
+
+		threadAttendeeLastReadMessage(newValue) {
+			if (!this.threadId || !newValue) {
+				return
+			}
+			// acorns: スレッド情報の到着遅延の保険。スレッドキーの視覚既読が未設定のときだけ設定する
+			if (this.$store.getters.getVisualLastReadMessageId(this.token, this.threadId) === null) {
+				this.$store.dispatch('setVisualLastReadMessageId', {
+					token: this.token,
+					threadId: this.threadId,
+					id: newValue,
+				})
+			}
 		},
 
 	},

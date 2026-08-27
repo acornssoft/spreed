@@ -555,6 +555,19 @@ describe('messagesStore', () => {
 		expect(deleteMessage).not.toHaveBeenCalled()
 	})
 
+	test('purges visual last read message ids of the conversation and its threads', () => {
+		store.dispatch('setVisualLastReadMessageId', { token: TOKEN, id: 100 })
+		store.dispatch('setVisualLastReadMessageId', { token: TOKEN, threadId: 138, id: 90 })
+		store.dispatch('setVisualLastReadMessageId', { token: 'OTHER_TOKEN', id: 50 })
+
+		store.dispatch('purgeMessagesStore', TOKEN)
+
+		expect(store.getters.getVisualLastReadMessageId(TOKEN)).toBe(null)
+		expect(store.getters.getVisualLastReadMessageId(TOKEN, 138)).toBe(null)
+		// other conversations are not affected
+		expect(store.getters.getVisualLastReadMessageId('OTHER_TOKEN')).toBe(50)
+	})
+
 	describe('temporary messages', () => {
 		beforeEach(() => {
 			vi.useFakeTimers().setSystemTime(new Date('2020-01-01T20:00:00'))

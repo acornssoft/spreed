@@ -313,6 +313,19 @@ export function useGetMessagesProvider() {
 
 		store.dispatch('setVisualLastReadMessageId', { token, id: currentConversation.value!.lastReadMessage })
 
+		if (contextThreadId.value) {
+			// acorns: スレッド表示の初回オープンではスレッドの既読位置を区切り線に使う
+			if (!chatExtrasStore.getThread(token, contextThreadId.value)) {
+				await chatExtrasStore.fetchSingleThread(token, contextThreadId.value)
+			}
+			const threadLastReadMessage = chatExtrasStore.getThread(token, contextThreadId.value)?.attendee.lastReadMessage ?? 0
+			store.dispatch('setVisualLastReadMessageId', { token, threadId: contextThreadId.value, id: threadLastReadMessage })
+			if (focusMessageId === null && threadLastReadMessage) {
+				// 未読の先頭から表示する(0=未追跡のときは従来どおり会話の既読位置)
+				contextMessageId.value = threadLastReadMessage
+			}
+		}
+
 		if (!chatStore.chatBlocks[token]) {
 			try {
 				// TODO id previously could be 0 in this place, need to block fetching the chat from beginning
