@@ -739,6 +739,10 @@ namespace OCA\Talk;
  * @psalm-type TalkThreadAttendee = array{
  *      // The notification level for the user in this thread (See [Participant notification levels](https://nextcloud-talk.readthedocs.io/en/latest/constants#participant-notification-levels))
  *      notificationLevel: 0|1|2|3,
+ *      // acorns: Last message id the user has read in this thread. 0 when the user is not tracked in this thread (requires `acorns-thread-read-marker`)
+ *      lastReadMessage: non-negative-int,
+ *      // acorns: Number of unread messages in this thread for the user. 0 when not tracked (requires `acorns-thread-read-marker`)
+ *      unreadMessages: non-negative-int,
  * }
  *
  * @psalm-type TalkThreadInfo = array{

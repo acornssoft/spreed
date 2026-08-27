@@ -26,6 +26,8 @@ use OCP\DB\Types;
  * @method string getActorId()
  * @method void setNotificationLevel(int $notificationLevel)
  * @method int getNotificationLevel()
+ * @method void setLastReadMessage(int $lastReadMessage)
+ * @method int getLastReadMessage()
  *
  * @psalm-import-type TalkThreadAttendee from ResponseDefinitions
  */
@@ -37,6 +39,11 @@ class ThreadAttendee extends Entity implements \JsonSerializable {
 	protected string $actorId = '';
 	protected int $notificationLevel = 0;
 
+	protected int $lastReadMessage = 0;
+
+	// acorns: DB 列ではない。応答を組むときに ThreadService が入れる一時値
+	protected int $unreadMessages = 0;
+
 	public function __construct() {
 		$this->addType('roomId', Types::BIGINT);
 		$this->addType('threadId', Types::BIGINT);
@@ -44,6 +51,15 @@ class ThreadAttendee extends Entity implements \JsonSerializable {
 		$this->addType('actorType', Types::STRING);
 		$this->addType('actorId', Types::STRING);
 		$this->addType('notificationLevel', Types::INTEGER);
+		$this->addType('lastReadMessage', Types::BIGINT);
+	}
+
+	public function getUnreadMessages(): int {
+		return $this->unreadMessages;
+	}
+
+	public function setUnreadMessages(int $unreadMessages): void {
+		$this->unreadMessages = $unreadMessages;
 	}
 
 	public static function createFromRow(array $row): ThreadAttendee {
@@ -54,6 +70,7 @@ class ThreadAttendee extends Entity implements \JsonSerializable {
 		$attendee->setNotificationLevel((int)$row['notification_level']);
 		$attendee->setActorType($row['actor_type']);
 		$attendee->setActorId($row['actor_id']);
+		$attendee->setLastReadMessage((int)($row['last_read_message'] ?? 0));
 		return $attendee;
 	}
 
@@ -75,6 +92,8 @@ class ThreadAttendee extends Entity implements \JsonSerializable {
 	public function jsonSerialize(): array {
 		return [
 			'notificationLevel' => min(3, max(0, $this->getNotificationLevel())),
+			'lastReadMessage' => max(0, $this->getLastReadMessage()),
+			'unreadMessages' => max(0, $this->unreadMessages),
 		];
 	}
 }
