@@ -15,6 +15,7 @@ use OCA\Talk\Events\ReactionRemovedEvent;
 use OCA\Talk\Exceptions\ReactionAlreadyExistsException;
 use OCA\Talk\Exceptions\ReactionNotSupportedException;
 use OCA\Talk\Exceptions\ReactionOutOfContextException;
+use OCA\Talk\Model\Message;
 use OCA\Talk\Participant;
 use OCA\Talk\ResponseDefinitions;
 use OCA\Talk\Room;
@@ -74,6 +75,16 @@ class ReactionManager {
 		$comment->setMessage($reaction);
 		$comment->setVerb(ChatManager::VERB_REACTION);
 		$comment->setExpireDate($parentMessage->getExpireDate());
+
+		// acorns: スレッド所属の権威は metadata の thread_id。リアクションは sendMessage も
+		// addSystemMessage も通らないので、ここで親から継承しないとスレッド外扱いになり、
+		// 親メッセージ(parent)がチャンネルに現れ、スレッド表示にリアクションが届かなくなる。
+		// getThreadIdFromComment() は使わない。親がチャンネルの引用返信(thread_id 無し)なら
+		// フォールバックで親自身の id が返り、誤ってスレッド扱いになるため
+		$parentMetaData = $parentMessage->getMetaData() ?? [];
+		if (isset($parentMetaData[Message::METADATA_THREAD_ID])) {
+			$comment->setMetaData([Message::METADATA_THREAD_ID => (int)$parentMetaData[Message::METADATA_THREAD_ID]]);
+		}
 
 		$event = new BeforeReactionAddedEvent($chat, $parentMessage, $actorType, $actorId, $actorDisplayName, $reaction);
 		$this->dispatcher->dispatchTyped($event);

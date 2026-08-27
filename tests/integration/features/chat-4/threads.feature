@@ -375,3 +375,26 @@ Feature: chat-4/threads
       | room | actorType | actorId      | actorDisplayName         | message   | messageParameters | parentMessage | threadTitle | threadReplies |
       | room | users     | participant2 | participant2-displayname | Reply 1   | []                | Message 1     | Message 1   | 1             |
       | room | users     | participant1 | participant1-displayname | Message 1 | []                |               | Message 1   | 1             |
+
+  Scenario: acorns - Reacting to a thread reply keeps the reply inside the thread
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant2" sends reply "Reply 1" on message "Message 1" to room "room" with 201
+    When user "participant1" react with "👍" on message "Reply 1" to room "room" with 201
+      | actorType | actorId      | actorDisplayName         | reaction |
+      | users     | participant1 | participant1-displayname | 👍       |
+    # リアクションのコメントは親(Reply 1)の thread_id を継承し、
+    # parent として返る Reply 1 もスレッド所属(isThread/threadTitle)を保つ
+    Then user "participant1" sees the following system messages in room "room" with 200
+      | room | actorType | actorId      | systemMessage        | threadTitle | parentThreadTitle |
+      | room | users     | participant1 | reaction             | Message 1   | Message 1         |
+      | room | users     | participant1 | thread_created       | Message 1   | Message 1         |
+      | room | users     | participant1 | user_added           |             |                   |
+      | room | users     | participant1 | conversation_created |             |                   |
+    And user "participant1" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 1            | Reply 1       | 0                   | Message 1    | Reply 1     |

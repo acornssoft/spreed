@@ -3551,6 +3551,14 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 				$data['silent'] = isset($message['silent']) ? json_encode($message['silent']) : '!ISSET';
 			}
 
+			// acorns: システムメッセージ(リアクション等)と、その parent のスレッド所属を検査する
+			if (isset($expected['threadTitle'])) {
+				$data['threadTitle'] = $message['threadTitle'] ?? '';
+			}
+			if (isset($expected['parentThreadTitle'])) {
+				$data['parentThreadTitle'] = $message['parent']['threadTitle'] ?? '';
+			}
+
 			return $data;
 		}, $messages, $expected));
 	}
