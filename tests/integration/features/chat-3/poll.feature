@@ -711,7 +711,7 @@ Feature: chat-3/poll
       | room | users         | participant1 | user_added           | You added {user}                 | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"},"user":{"type":"highlight","id":"deleted_users","name":"Deleted user"}} |
       | room | users         | participant1 | conversation_created | You created the conversation     | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
 
-  Scenario: Deleting the poll message removes all details
+  Scenario: acorns - Deleting the poll message removes all details
     Given user "participant1" creates room "room" (v4)
       | roomType | 2 |
       | roomName | room |
@@ -724,7 +724,8 @@ Feature: chat-3/poll
     And user "participant1" sees the following messages in room "room" with 200 (v1)
       | room | actorType | actorId      | actorDisplayName         | message  | messageParameters |
       | room | users     | participant2 | participant2-displayname | {object} | "IGNORE"          |
-    And user "participant1" deletes message "{object}" from room "room" with 200 (v1)
+    # acorns: moderators can not delete other users' messages, so the poll author deletes it
+    And user "participant2" deletes message "{object}" from room "room" with 200 (v1)
     And user "participant1" votes for options "[1]" on poll "What is the question?" in room "room" with 404
     And user "participant2" votes for options "[0]" on poll "What is the question?" in room "room" with 404
     And user "participant1" closes poll "What is the question?" in room "room" with 404
@@ -732,15 +733,15 @@ Feature: chat-3/poll
     Then user "participant1" sees poll "What is the question?" in room "room" with 404
     Then user "participant2" sees poll "What is the question?" in room "room" with 404
     And user "participant1" sees the following messages in room "room" with 200 (v1)
-      | room | actorType | actorId      | actorDisplayName         | message                | messageParameters |
-      | room | users     | participant2 | participant2-displayname | Message deleted by you | "IGNORE"          |
+      | room | actorType | actorId      | actorDisplayName         | message                   | messageParameters |
+      | room | users     | participant2 | participant2-displayname | Message deleted by author | "IGNORE"          |
     Then user "participant1" sees the following system messages in room "room" with 200 (v1)
       | room | actorType     | actorId      | systemMessage        | message                          | silent | messageParameters |
-      | room | users         | participant1 | message_deleted      | You deleted a message            | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
+      | room | users         | participant2 | message_deleted      | {actor} deleted a message        | !ISSET | {"actor":{"type":"user","id":"participant2","name":"participant2-displayname","mention-id":"participant2"}} |
       | room | users         | participant1 | user_added           | You added {user}                 | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"},"user":{"type":"user","id":"participant2","name":"participant2-displayname","mention-id":"participant2"}} |
       | room | users         | participant1 | conversation_created | You created the conversation     | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
 
-  Scenario: Deleting a closed poll message removes also the close message
+  Scenario: acorns - Deleting a closed poll message removes also the close message
     Given user "participant1" creates room "room" (v4)
       | roomType | 2 |
       | roomName | room |
@@ -767,7 +768,8 @@ Feature: chat-3/poll
       | status     | closed |
       | votedSelf  | [] |
       | details    | [] |
-    And user "participant1" deletes message "{object}" from room "room" with 200 (v1)
+    # acorns: moderators can not delete other users' messages, so the poll author deletes it
+    And user "participant2" deletes message "{object}" from room "room" with 200 (v1)
     And user "participant1" votes for options "[1]" on poll "What is the question?" in room "room" with 404
     And user "participant2" votes for options "[0]" on poll "What is the question?" in room "room" with 404
     And user "participant1" closes poll "What is the question?" in room "room" with 404
@@ -775,13 +777,13 @@ Feature: chat-3/poll
     Then user "participant1" sees poll "What is the question?" in room "room" with 404
     Then user "participant2" sees poll "What is the question?" in room "room" with 404
     And user "participant1" sees the following messages in room "room" with 200 (v1)
-      | room | actorType | actorId      | actorDisplayName         | message                | messageParameters |
-      | room | users     | participant2 | participant2-displayname | Message deleted by you | "IGNORE"          |
-      | room | users     | participant2 | participant2-displayname | Message deleted by you | "IGNORE"          |
+      | room | actorType | actorId      | actorDisplayName         | message                   | messageParameters |
+      | room | users     | participant2 | participant2-displayname | Message deleted by author | "IGNORE"          |
+      | room | users     | participant2 | participant2-displayname | Message deleted by author | "IGNORE"          |
     Then user "participant1" sees the following system messages in room "room" with 200 (v1)
       | room | actorType     | actorId      | systemMessage        | message                          | silent | messageParameters |
-      | room | users         | participant1 | message_deleted      | You deleted a message            | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
-      | room | users         | participant1 | message_deleted      | You deleted a message            | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
+      | room | users         | participant2 | message_deleted      | {actor} deleted a message        | !ISSET | {"actor":{"type":"user","id":"participant2","name":"participant2-displayname","mention-id":"participant2"}} |
+      | room | users         | participant2 | message_deleted      | {actor} deleted a message        | !ISSET | {"actor":{"type":"user","id":"participant2","name":"participant2-displayname","mention-id":"participant2"}} |
       | room | users         | participant1 | user_added           | You added {user}                 | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"},"user":{"type":"user","id":"participant2","name":"participant2-displayname","mention-id":"participant2"}} |
       | room | users         | participant1 | conversation_created | You created the conversation     | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
 

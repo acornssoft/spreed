@@ -27,7 +27,7 @@ Feature: chat-1/edit-message
       | room | actorType | actorId      | actorDisplayName         | message            | messageParameters | parentMessage |
       | room | users     | participant1 | participant1-displayname | Message 1 - Edit 1 | []                |               |
 
-  Scenario: User and moderator edit user message
+  Scenario: acorns - moderator can not edit other user message
     Given user "participant1" creates room "room" (v4)
       | roomType | 2 |
       | roomName | room |
@@ -36,33 +36,51 @@ Feature: chat-1/edit-message
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
       | room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
-    And user "participant1" edits message "Message 1" in room "room" to "Message 1 - Edit 1" with 200
+    And user "participant1" edits message "Message 1" in room "room" to "Message 1 - Edit 1" with 403
+      | error | permission |
+    Then user "participant1" sees the following messages in room "room" with 200
+      | room | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
+      | room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
+    Then user "participant2" sees the following messages in room "room" with 200
+      | room | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
+      | room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
+    # The permission check runs before the age check, so a moderator gets 403 at any age
+    When aging messages 6 hours in room "room"
+    And user "participant1" edits message "Message 1" in room "room" to "Message 1 - Edit 1" with 403
+      | error | permission |
+    When aging messages 24 hours in room "room"
+    And user "participant1" edits message "Message 1" in room "room" to "Message 1 - Edit 1" with 403
+      | error | permission |
+
+  Scenario: acorns - user edits own message
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant2" sends message "Message 1" to room "room" with 201
+    Then user "participant1" sees the following messages in room "room" with 200
+      | room | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
+      | room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
+    And user "participant2" edits message "Message 1" in room "room" to "Message 1 - Edit 1" with 200
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message            | messageParameters | parentMessage | lastEditActorType | lastEditActorId      | lastEditActorDisplayName |
-      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 1 | []                |               | users             | participant1         | participant1-displayname |
+      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 1 | []                |               | users             | participant2         | participant2-displayname |
     Then user "participant2" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message            | messageParameters | parentMessage | lastEditActorType | lastEditActorId      | lastEditActorDisplayName |
-      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 1 | []                |               | users             | participant1         | participant1-displayname |
-    And user "participant2" edits message "Message 1 - Edit 1" in room "room" to "Message 1 - Edit 2" with 200
-    Then user "participant1" sees the following messages in room "room" with 200
-      | room | actorType | actorId      | actorDisplayName         | message            | messageParameters | parentMessage | lastEditActorType | lastEditActorId      | lastEditActorDisplayName |
-      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 2 | []                |               | users             | participant2         | participant2-displayname |
-    Then user "participant2" sees the following messages in room "room" with 200
-      | room | actorType | actorId      | actorDisplayName         | message            | messageParameters | parentMessage | lastEditActorType | lastEditActorId      | lastEditActorDisplayName |
-      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 2 | []                |               | users             | participant2         | participant2-displayname |
+      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 1 | []                |               | users             | participant2         | participant2-displayname |
     And user "participant2" edits message "Message 1 - Edit 1" in room "room" to "" with 400
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message            | messageParameters | parentMessage | lastEditActorType | lastEditActorId      | lastEditActorDisplayName |
-      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 2 | []                |               | users             | participant2         | participant2-displayname |
+      | room | users     | participant2 | participant2-displayname | Message 1 - Edit 1 | []                |               | users             | participant2         | participant2-displayname |
+    When aging messages 6 hours in room "room"
+    And user "participant2" edits message "Message 1 - Edit 1" in room "room" to "Message 1 - Edit 2" with 200
+    When aging messages 24 hours in room "room"
+    And user "participant2" edits message "Message 1 - Edit 2" in room "room" to "Message 1 - Edit Too old" with 400
+      | error | age |
     When user "participant2" is deleted
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType     | actorId       | actorDisplayName | message            | messageParameters | parentMessage | lastEditActorType | lastEditActorId      | lastEditActorDisplayName |
       | room | deleted_users | deleted_users |                  | Message 1 - Edit 2 | []                |               | deleted_users     | deleted_users        |                          |
-    When aging messages 6 hours in room "room"
-    And user "participant1" edits message "Message 1 - Edit 1" in room "room" to "Message 1 - Edit 2" with 200
-    When aging messages 24 hours in room "room"
-    And user "participant1" edits message "Message 1 - Edit 2" in room "room" to "Message 1 - Edit Too old" with 400
-      | error | age |
 
   Scenario: Editing a caption
     Given user "participant1" creates room "room" (v4)

@@ -63,7 +63,7 @@ Feature: chat-1/delete
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
       | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
 
-  Scenario: moderator deletes other user message
+  Scenario: acorns - moderator can not delete other user message
     Given user "participant1" creates room "group room" (v4)
       | roomType | 2 |
       | roomName | room |
@@ -72,17 +72,19 @@ Feature: chat-1/delete
     Then user "participant1" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
       | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
-    And user "participant1" deletes message "Message 1" from room "group room" with 200
+    And user "participant1" deletes message "Message 1" from room "group room" with 403
     Then user "participant1" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
-      | group room | users     | participant2 | participant2-displayname | Message deleted by you   | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}}                |               |
+      | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
     Then user "participant2" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
-      | group room | users     | participant2 | participant2-displayname | Message deleted by {actor}   | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}}                |               |
-    Then user "participant1" received a system messages in room "group room" to delete "Message 1"
-    Then user "participant2" received a system messages in room "group room" to delete "Message 1"
+      | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
+    Then user "participant1" sees the following system messages in room "group room" with 200
+      | room       | actorType | actorId      | systemMessage        | message                        | silent | messageParameters |
+      | group room | users     | participant1 | user_added           | You added {user}               | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"},"user":{"type":"user","id":"participant2","name":"participant2-displayname","mention-id":"participant2"}} |
+      | group room | users     | participant1 | conversation_created | You created the conversation   | !ISSET | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}} |
 
-  Scenario: moderator deletes their own message which got replies
+  Scenario: acorns - moderator can not delete other user message which got replies
     Given user "participant1" creates room "group room" (v4)
       | roomType | 2 |
       | roomName | room |
@@ -97,17 +99,15 @@ Feature: chat-1/delete
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
       | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message 1     |
       | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
-    And user "participant1" deletes message "Message 1" from room "group room" with 200
+    And user "participant1" deletes message "Message 1" from room "group room" with 403
     Then user "participant1" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
-      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message deleted by you     |
-      | group room | users     | participant2 | participant2-displayname | Message deleted by you   | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}}                |               |
+      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message 1     |
+      | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
     Then user "participant2" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
-      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message deleted by {actor}     |
-      | group room | users     | participant2 | participant2-displayname | Message deleted by {actor}   | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}}                |               |
-    Then user "participant1" received a system messages in room "group room" to delete "Message 1"
-    Then user "participant2" received a system messages in room "group room" to delete "Message 1"
+      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message 1     |
+      | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
 
   Scenario: user deletes their own message which got replies
     Given user "participant1" creates room "group room" (v4)
@@ -136,7 +136,7 @@ Feature: chat-1/delete
     Then user "participant1" received a system messages in room "group room" to delete "Message 1"
     Then user "participant2" received a system messages in room "group room" to delete "Message 1"
 
-  Scenario: moderator deletes other user message
+  Scenario: acorns - moderator can not delete other user message
     Given user "participant1" creates room "group room" (v4)
       | roomType | 2 |
       | roomName | room |
@@ -151,17 +151,15 @@ Feature: chat-1/delete
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
       | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message 1     |
       | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
-    And user "participant1" deletes message "Message 1" from room "group room" with 200
+    And user "participant1" deletes message "Message 1" from room "group room" with 403
     Then user "participant1" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
-      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message deleted by you     |
-      | group room | users     | participant2 | participant2-displayname | Message deleted by you   | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}}                |               |
+      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message 1     |
+      | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
     Then user "participant2" sees the following messages in room "group room" with 200
       | room       | actorType | actorId      | actorDisplayName         | message     | messageParameters | parentMessage |
-      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message deleted by {actor}     |
-      | group room | users     | participant2 | participant2-displayname | Message deleted by {actor}   | {"actor":{"type":"user","id":"participant1","name":"participant1-displayname","mention-id":"participant1"}}                |               |
-    Then user "participant1" received a system messages in room "group room" to delete "Message 1"
-    Then user "participant2" received a system messages in room "group room" to delete "Message 1"
+      | group room | users     | participant1 | participant1-displayname | Message 1-1 | []                | Message 1     |
+      | group room | users     | participant2 | participant2-displayname | Message 1   | []                |               |
 
   Scenario: Can only delete own messages in one-to-one
     Given user "participant1" creates room "room1" (v4)
