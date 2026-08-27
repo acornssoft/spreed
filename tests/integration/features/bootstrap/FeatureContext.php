@@ -2299,6 +2299,22 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		self::$threadIdToTitle[$threadId] = $newTitle;
 	}
 
+	#[Then('/^user "([^"]*)" creates thread from message "([^"]*)" in room "([^"]*)" with (\d+)(?: \((v1)\))?$/')]
+	public function userCreatesThreadFromMessageInRoom(string $user, string $message, string $identifier, int $statusCode, string $apiVersion = 'v1'): void {
+		$messageId = self::$textToMessageId[$message];
+		$this->setCurrentUser($user);
+		$this->sendRequest(
+			'POST', '/apps/spreed/api/' . $apiVersion . '/chat/' . self::$identifierToToken[$identifier] . '/threads/' . $messageId
+		);
+		$this->assertStatusCode($this->response, $statusCode);
+		if ($statusCode === 200) {
+			// The title is auto-generated from the message text,
+			// register it so THREAD_ID(...) works in following steps
+			self::$titleToThreadId[$message] = $messageId;
+			self::$threadIdToTitle[$messageId] = $message;
+		}
+	}
+
 	#[Then('/^user "([^"]*)" edits message ("[^"]*"|\'[^\']*\') in room "([^"]*)" to ("[^"]*"|\'[^\']*\') with (\d+)(?: \((v1)\))?$/')]
 	public function userEditsMessageToRoom(string $user, string $oldMessage, string $identifier, string $newMessage, int $statusCode, string $apiVersion = 'v1', ?TableNode $formData = null): void {
 		$oldMessage = substr($oldMessage, 1, -1);
@@ -2884,6 +2900,29 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		$this->sendRequest(
 			'POST', '/apps/spreed/api/' . $apiVersion . '/chat/' . self::$identifierToToken[$identifier],
 			new TableNode([['message', $reply], $replyTo])
+		);
+		$this->assertStatusCode($this->response, $statusCode);
+		sleep(1); // make sure Postgres manages the order of the messages
+
+		$response = $this->getDataFromResponse($this->response);
+		if (isset($response['id'])) {
+			self::$textToMessageId[$reply] = $response['id'];
+			self::$messageIdToText[$response['id']] = $reply;
+		}
+	}
+
+	#[Then('/^user "([^"]*)" sends reply ("[^"]*"|\'[^\']*\') on message ("[^"]*"|\'[^\']*\') to room "([^"]*)" without thread with (\d+)(?: \((v1)\))?$/')]
+	public function userSendsReplyToRoomWithoutThread(string $user, string $reply, string $message, string $identifier, int $statusCode, string $apiVersion = 'v1'): void {
+		$reply = substr($reply, 1, -1);
+		$message = substr($message, 1, -1);
+
+		$replyTo = self::$textToMessageId[$message];
+
+		$this->setCurrentUser($user);
+		$this->sendRequest(
+			'POST', '/apps/spreed/api/' . $apiVersion . '/chat/' . self::$identifierToToken[$identifier],
+			// threadId -2 (THREAD_EXPLICIT_NONE) keeps the quote but stays out of the thread
+			new TableNode([['message', $reply], ['replyTo', $replyTo], ['threadId', -2]])
 		);
 		$this->assertStatusCode($this->response, $statusCode);
 		sleep(1); // make sure Postgres manages the order of the messages
