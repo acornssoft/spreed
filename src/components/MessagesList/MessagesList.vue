@@ -687,7 +687,10 @@ export default {
 					// Safeguard 2: in case the fallback message is not found too
 					// scroll to bottom
 					this.scrollToBottom({ smooth: false, force: true })
-				} else {
+				} else if (this.visualLastReadMessageId) {
+					// acorns: 視覚既読が未確定(null)のとき、フォールバック位置を既読位置として書き込まない。
+					// スレッド表示の初回オープンでスレッド情報の GET が未着だと末尾付近の id が入り、
+					// 後続の pin が「設定済み」と見て区切り線が出なくなるのを防ぐ
 					this.$store.dispatch('setVisualLastReadMessageId', {
 						token: this.token,
 						threadId: this.threadId,

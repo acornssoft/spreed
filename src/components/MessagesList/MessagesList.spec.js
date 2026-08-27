@@ -697,4 +697,51 @@ describe('MessagesList.vue', () => {
 			})
 		})
 	})
+
+	describe('scrollToFocusedMessage', () => {
+		beforeEach(async () => {
+			// スレッド表示(?threadId=138)を再現
+			await router.push({ path: '/call/' + TOKEN, query: { threadId: '138' } })
+			// フォールバック位置は常に 105 が見つかるものとする
+			testStoreConfig.modules.messagesStore.getters.getFirstDisplayableMessageIdBeforeReadMarker
+				= vi.fn().mockReturnValue(() => 105)
+			store = createStore(testStoreConfig)
+			useStore.mockReturnValue(store)
+			store.commit('addConversation', { token: TOKEN, hasCall: false })
+		})
+
+		afterEach(async () => {
+			await router.push({ path: '/call/' + TOKEN })
+		})
+
+		test('does not write fallback position as visual read marker when it is not determined yet (thread view)', async () => {
+			// スレッド情報の GET 未着で視覚既読が null
+			getVisualLastReadMessageIdMock.mockReturnValue(null)
+			const wrapper = mountMessagesList()
+			const dispatchSpy = vi.spyOn(store, 'dispatch')
+			// フォールバック位置へのフォーカス自体は成功したとする
+			wrapper.vm.focusMessage = vi.fn().mockReturnValue(true)
+
+			wrapper.vm.scrollToFocusedMessage()
+
+			// 視覚既読が未確定のとき、フォールバック位置を既読位置として書き込まない
+			expect(dispatchSpy).not.toHaveBeenCalledWith('setVisualLastReadMessageId', expect.anything())
+		})
+
+		test('writes fallback position as visual read marker when it is already set (existing behavior)', async () => {
+			getVisualLastReadMessageIdMock.mockReturnValue(100)
+			const wrapper = mountMessagesList()
+			const dispatchSpy = vi.spyOn(store, 'dispatch')
+			// 既読位置のメッセージは見つからず、フォールバック位置へのフォーカスは成功
+			wrapper.vm.focusMessage = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
+
+			wrapper.vm.scrollToFocusedMessage()
+
+			expect(dispatchSpy).toHaveBeenCalledWith('setVisualLastReadMessageId', {
+				token: TOKEN,
+				threadId: 138,
+				id: 105,
+			})
+		})
+	})
 })
