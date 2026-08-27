@@ -610,6 +610,7 @@ class RoomController extends AEnvironmentAwareOCSController {
 	}
 
 	/**
+	 * @param non-negative-int|null $unreadThreads
 	 * @return TalkRoom
 	 */
 	protected function formatRoom(

@@ -120,7 +120,7 @@ class ThreadAttendeeMapper extends QBMapper {
 	 * acorns: 会話ごとの「未読があるスレッド」の数。oc_comments には触らない
 	 *
 	 * @param list<int> $attendeeIds
-	 * @return array<int, int> room_id → count
+	 * @return array<int, non-negative-int> room_id → count
 	 */
 	public function countUnreadThreadsByRoom(array $attendeeIds): array {
 		$query = $this->db->getQueryBuilder();

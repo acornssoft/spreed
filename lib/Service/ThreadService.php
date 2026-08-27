@@ -275,7 +275,7 @@ class ThreadService {
 
 	/**
 	 * @param list<int> $attendeeIds
-	 * @return array<int, int> room id → 未読があるスレッドの数
+	 * @return array<int, non-negative-int> room id → 未読があるスレッドの数
 	 */
 	public function countUnreadThreadsByRoom(array $attendeeIds): array {
 		if (empty($attendeeIds)) {

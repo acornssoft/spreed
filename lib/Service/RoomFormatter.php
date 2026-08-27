@@ -58,6 +58,7 @@ class RoomFormatter {
 	}
 
 	/**
+	 * @param non-negative-int|null $unreadThreads
 	 * @return TalkRoom
 	 */
 	public function formatRoom(
@@ -90,6 +91,7 @@ class RoomFormatter {
 
 	/**
 	 * @param array<int, int> $commonReadMessages
+	 * @param non-negative-int|null $unreadThreads
 	 * @return TalkRoom
 	 */
 	public function formatRoomV4(
@@ -336,7 +338,7 @@ class RoomFormatter {
 				}
 
 				// acorns: 追跡中スレッドの未読数。一覧からは RoomController が一括で渡す
-				$roomData['unreadThreads'] = $unreadThreads ?? ($this->threadService->countUnreadThreadsByRoom([$attendee->getId()])[$room->getId()] ?? 0);
+				$roomData['unreadThreads'] = max(0, $unreadThreads ?? ($this->threadService->countUnreadThreadsByRoom([$attendee->getId()])[$room->getId()] ?? 0));
 
 				$lastMention = $attendee->getLastMentionMessage();
 				$lastMentionDirect = $attendee->getLastMentionDirect();
