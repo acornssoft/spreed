@@ -336,8 +336,8 @@ Feature: chat-4/threads
     And user "participant2" sends reply "Reply 2" on message "Message 1" to room "room" with 201
     When user "participant1" creates thread from message "Message 1" in room "room" with 200
     Then user "participant1" sees the following recent threads in room "room" with 200
-      | t.id      | t.title   | t.numReplies |
-      | Message 1 | Message 1 | 0            |
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 0            | 0             | 0                   | Message 1    | NULL        |
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message   | messageParameters | parentMessage |
       | room | users     | participant2 | participant2-displayname | Reply 2   | []                | Message 1     |
@@ -353,8 +353,8 @@ Feature: chat-4/threads
     And user "participant1" creates thread from message "Message 1" in room "room" with 200
     When user "participant2" sends reply "Reply 1" on message "Message 1" to room "room" without thread with 201
     Then user "participant1" sees the following recent threads in room "room" with 200
-      | t.id      | t.title   | t.numReplies |
-      | Message 1 | Message 1 | 0            |
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 0            | 0             | 0                   | Message 1    | NULL        |
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message   | messageParameters | parentMessage | threadTitle | threadReplies |
       | room | users     | participant2 | participant2-displayname | Reply 1   | []                | Message 1     |             |               |
@@ -369,8 +369,8 @@ Feature: chat-4/threads
     And user "participant1" creates thread from message "Message 1" in room "room" with 200
     When user "participant2" sends reply "Reply 1" on message "Message 1" to room "room" with 201
     Then user "participant1" sees the following recent threads in room "room" with 200
-      | t.id      | t.title   | t.numReplies | t.lastMessage |
-      | Message 1 | Message 1 | 1            | Reply 1       |
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 1            | Reply 1       | 0                   | Message 1    | Reply 1     |
     Then user "participant1" sees the following messages in room "room" with 200
       | room | actorType | actorId      | actorDisplayName         | message   | messageParameters | parentMessage | threadTitle | threadReplies |
       | room | users     | participant2 | participant2-displayname | Reply 1   | []                | Message 1     | Message 1   | 1             |
