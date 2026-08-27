@@ -12,6 +12,7 @@ use OC\Comments\Comment;
 use OC\Comments\Manager;
 use OCP\Comments\IComment;
 use OCP\DB\Exception;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CommentsManager extends Manager {
@@ -130,20 +131,11 @@ class CommentsManager extends Manager {
 			// acorns: スレッド所属の権威を metadata の thread_id に移した。
 			// topmost_parent_id で候補を絞ってから metadata で判定するので
 			// LIKE がフルスキャンにならない。
-			// "thread_id":123 が "thread_id":1234 に誤マッチしないよう
-			// 末尾の , と } の 2 パターンを OR する。
 			$query->andWhere($query->expr()->orX(
 				$query->expr()->eq('id', $query->createNamedParameter($topmostParentId)),
 				$query->expr()->andX(
 					$query->expr()->eq('topmost_parent_id', $query->createNamedParameter($topmostParentId)),
-					$query->expr()->orX(
-						$query->expr()->like('meta_data', $query->createNamedParameter(
-							'%"thread_id":' . (int)$topmostParentId . ',%'
-						)),
-						$query->expr()->like('meta_data', $query->createNamedParameter(
-							'%"thread_id":' . (int)$topmostParentId . '}%'
-						)),
-					),
+					$this->threadMetaDataCondition($query, (int)$topmostParentId),
 				),
 			));
 		}
@@ -229,6 +221,36 @@ class CommentsManager extends Manager {
 		$resultStatement->closeCursor();
 
 		return $comments;
+	}
+
+	/**
+	 * acorns: metadata の thread_id でスレッド member に絞る条件。
+	 * "thread_id":123 が "thread_id":1234 に誤マッチしないよう , と } の 2 パターン
+	 */
+	protected function threadMetaDataCondition(IQueryBuilder $query, int $threadId): ICompositeExpression {
+		return $query->expr()->orX(
+			$query->expr()->like('meta_data', $query->createNamedParameter('%"thread_id":' . $threadId . ',%')),
+			$query->expr()->like('meta_data', $query->createNamedParameter('%"thread_id":' . $threadId . '}%')),
+		);
+	}
+
+	/**
+	 * acorns: スレッド内で $lastReadMessage より後の会話メッセージの数
+	 */
+	public function getNumberOfUnreadMessagesInThread(int $roomId, int $threadId, int $lastReadMessage): int {
+		$query = $this->dbConn->getQueryBuilder();
+		$query->select($query->func()->count('id', 'num_messages'))
+			->from('comments')
+			->where($query->expr()->eq('object_type', $query->createNamedParameter('chat')))
+			->andWhere($query->expr()->eq('object_id', $query->createNamedParameter((string)$roomId)))
+			->andWhere($query->expr()->gt('id', $query->createNamedParameter($lastReadMessage, IQueryBuilder::PARAM_INT)))
+			->andWhere($query->expr()->in('verb', $query->createNamedParameter([ChatManager::VERB_MESSAGE, ChatManager::VERB_OBJECT_SHARED], IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($this->threadMetaDataCondition($query, $threadId));
+
+		$result = $query->executeQuery();
+		$data = $result->fetch();
+		$result->closeCursor();
+		return (int)($data['num_messages'] ?? 0);
 	}
 
 	/**

@@ -115,4 +115,29 @@ class ThreadAttendeeMapper extends QBMapper {
 
 		return $this->findEntities($query);
 	}
+
+	/**
+	 * acorns: 会話ごとの「未読があるスレッド」の数。oc_comments には触らない
+	 *
+	 * @param list<int> $attendeeIds
+	 * @return array<int, int> room_id → count
+	 */
+	public function countUnreadThreadsByRoom(array $attendeeIds): array {
+		$query = $this->db->getQueryBuilder();
+		$query->select('ta.room_id')
+			->selectAlias($query->func()->count('ta.thread_id'), 'num_unread')
+			->from($this->getTableName(), 'ta')
+			->innerJoin('ta', 'talk_threads', 't', $query->expr()->eq('t.id', 'ta.thread_id'))
+			->where($query->expr()->in('ta.attendee_id', $query->createNamedParameter($attendeeIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($query->expr()->gt('t.last_message_id', 'ta.last_read_message'))
+			->groupBy('ta.room_id');
+
+		$result = $query->executeQuery();
+		$counts = [];
+		while ($row = $result->fetch()) {
+			$counts[(int)$row['room_id']] = (int)$row['num_unread'];
+		}
+		$result->closeCursor();
+		return $counts;
+	}
 }

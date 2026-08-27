@@ -203,40 +203,97 @@ class ThreadService {
 		return $threadAttendees;
 	}
 
-	public function setNotificationLevel(Attendee $attendee, int $threadId, int $level): ThreadAttendee {
+	public function setNotificationLevel(Attendee $attendee, int $threadId, int $level, int $initialLastReadMessage = 0): ThreadAttendee {
 		try {
 			$threadAttendee = $this->threadAttendeeMapper->findAttendeeByThreadId($attendee->getActorType(), $attendee->getActorId(), $attendee->getRoomId(), $threadId);
 			$threadAttendee->setNotificationLevel($level);
 			$this->threadAttendeeMapper->update($threadAttendee);
 		} catch (DoesNotExistException) {
-			$threadAttendee = new ThreadAttendee();
-			$threadAttendee->setThreadId($threadId);
-			$threadAttendee->setRoomId($attendee->getRoomId());
-
-			$threadAttendee->setAttendeeId($attendee->getId());
-			$threadAttendee->setActorType($attendee->getActorType());
-			$threadAttendee->setActorId($attendee->getActorId());
-			$threadAttendee->setNotificationLevel($level);
+			if ($initialLastReadMessage === 0) {
+				// acorns: 通知設定で購読した人は設定時点まで既読扱い
+				try {
+					$initialLastReadMessage = $this->findByThreadId($attendee->getRoomId(), $threadId)->getLastMessageId();
+				} catch (DoesNotExistException) {
+					$initialLastReadMessage = 0;
+				}
+			}
+			$threadAttendee = $this->newThreadAttendee($attendee, $threadId, $level, $initialLastReadMessage);
 			$this->threadAttendeeMapper->insert($threadAttendee);
 		}
 
 		return $threadAttendee;
 	}
 
-	public function ensureIsThreadAttendee(Attendee $attendee, int $threadId): void {
+	/**
+	 * acorns: 返信した人の行を作る。自分の発言までは読んでいるので既読位置も進める
+	 */
+	public function ensureIsThreadAttendee(Attendee $attendee, int $threadId, int $ownMessageId = 0): void {
+		try {
+			$threadAttendee = $this->threadAttendeeMapper->findAttendeeByThreadId($attendee->getActorType(), $attendee->getActorId(), $attendee->getRoomId(), $threadId);
+			if ($ownMessageId > $threadAttendee->getLastReadMessage()) {
+				$threadAttendee->setLastReadMessage($ownMessageId);
+				$this->threadAttendeeMapper->update($threadAttendee);
+			}
+		} catch (DoesNotExistException) {
+			$this->threadAttendeeMapper->insert($this->newThreadAttendee($attendee, $threadId, Participant::NOTIFY_DEFAULT, $ownMessageId));
+		}
+	}
+
+	/**
+	 * acorns: スレッド内でメンションされた人の行を作る。メンションされたメッセージが未読 1 件になる。
+	 * 既に行があれば触らない
+	 */
+	public function ensureThreadAttendeeForMention(Attendee $attendee, int $threadId, int $mentionMessageId): void {
 		try {
 			$this->threadAttendeeMapper->findAttendeeByThreadId($attendee->getActorType(), $attendee->getActorId(), $attendee->getRoomId(), $threadId);
 		} catch (DoesNotExistException) {
-			$threadAttendee = new ThreadAttendee();
-			$threadAttendee->setThreadId($threadId);
-			$threadAttendee->setRoomId($attendee->getRoomId());
-
-			$threadAttendee->setAttendeeId($attendee->getId());
-			$threadAttendee->setActorType($attendee->getActorType());
-			$threadAttendee->setActorId($attendee->getActorId());
-			$threadAttendee->setNotificationLevel(Participant::NOTIFY_DEFAULT);
-			$this->threadAttendeeMapper->insert($threadAttendee);
+			$this->threadAttendeeMapper->insert($this->newThreadAttendee($attendee, $threadId, Participant::NOTIFY_DEFAULT, max(0, $mentionMessageId - 1)));
 		}
+	}
+
+	/**
+	 * acorns: スレッドの既読位置を進める。行が無い人は null(何もしない)。後戻りは例外
+	 *
+	 * @throws \InvalidArgumentException 現在の既読位置より小さい値
+	 */
+	public function setLastReadMessage(Attendee $attendee, int $threadId, int $messageId): ?ThreadAttendee {
+		try {
+			$threadAttendee = $this->threadAttendeeMapper->findAttendeeByThreadId($attendee->getActorType(), $attendee->getActorId(), $attendee->getRoomId(), $threadId);
+		} catch (DoesNotExistException) {
+			return null;
+		}
+
+		if ($messageId < $threadAttendee->getLastReadMessage()) {
+			throw new \InvalidArgumentException('read marker can not move backwards');
+		}
+		if ($messageId > $threadAttendee->getLastReadMessage()) {
+			$threadAttendee->setLastReadMessage($messageId);
+			$this->threadAttendeeMapper->update($threadAttendee);
+		}
+		return $threadAttendee;
+	}
+
+	/**
+	 * @param list<int> $attendeeIds
+	 * @return array<int, int> room id → 未読があるスレッドの数
+	 */
+	public function countUnreadThreadsByRoom(array $attendeeIds): array {
+		if (empty($attendeeIds)) {
+			return [];
+		}
+		return $this->threadAttendeeMapper->countUnreadThreadsByRoom($attendeeIds);
+	}
+
+	protected function newThreadAttendee(Attendee $attendee, int $threadId, int $level, int $lastReadMessage): ThreadAttendee {
+		$threadAttendee = new ThreadAttendee();
+		$threadAttendee->setThreadId($threadId);
+		$threadAttendee->setRoomId($attendee->getRoomId());
+		$threadAttendee->setAttendeeId($attendee->getId());
+		$threadAttendee->setActorType($attendee->getActorType());
+		$threadAttendee->setActorId($attendee->getActorId());
+		$threadAttendee->setNotificationLevel($level);
+		$threadAttendee->setLastReadMessage($lastReadMessage);
+		return $threadAttendee;
 	}
 
 	/**
