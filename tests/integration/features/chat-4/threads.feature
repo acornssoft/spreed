@@ -509,3 +509,23 @@ Feature: chat-4/threads
     Then user "participant2" sees the following recent threads in room "room" with 200
       | t.id      | t.title   | t.numReplies | t.lastMessage       | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage         |
       | Message 1 | Message 1 | 2            | Hello @participant2 | 0                   | Reply 1           | 1                | Message 1    | Hello @participant2 |
+
+  Scenario: acorns - The author of the root message follows a thread created from it
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant2" sends message "Message 1" to room "room" with 201
+    # participant1 が participant2 の発言をスレッド化する。作者 participant2 は「常に通知」で自動フォロー、起点までは既読
+    When user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant1" sends reply "Reply 1" on message "Message 1" to room "room" with 201
+    Then user "participant2" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 1            | Reply 1       | 1                   | Message 1         | 1                | Message 1    | Reply 1     |
+    And user "participant2" is participant of the following rooms (v4)
+      | id   | unreadThreads |
+      | room | 1             |
+    # スレッド化した人(participant1)は既定レベルのまま、自分の返信まで既読
+    And user "participant1" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 1            | Reply 1       | 0                   | Reply 1           | 0                | Message 1    | Reply 1     |

@@ -11,6 +11,7 @@ namespace OCA\Talk\Controller;
 use OCA\Talk\Chat\ChatManager;
 use OCA\Talk\Chat\CommentsManager;
 use OCA\Talk\Chat\MessageParser;
+use OCA\Talk\Exceptions\ParticipantNotFoundException;
 use OCA\Talk\Manager;
 use OCA\Talk\Middleware\Attribute\FederationSupported;
 use OCA\Talk\Middleware\Attribute\RequireModeratorOrNoLobby;
@@ -333,6 +334,18 @@ class ThreadController extends AEnvironmentAwareOCSController {
 
 		// acorns: 既存メッセージをスレッド化した人は起点まで既読(spec §4.2 の起点経路)
 		$this->threadService->setNotificationLevel($this->participant->getAttendee(), $thread->getId(), Participant::NOTIFY_DEFAULT, $messageId);
+
+		// acorns: 起点メッセージの作者(スレッド主)も追跡対象にする。Slack と同じく自動フォロー扱いで
+		// 「常に通知」。自分の発言までは既読。他人の発言をスレッド化した場合だけ作者 ≠ 作成者になる
+		if ($comment->getActorType() === Attendee::ACTOR_USERS
+			&& $comment->getActorId() !== $this->participant->getAttendee()->getActorId()) {
+			try {
+				$author = $this->participantService->getParticipantByActor($this->room, Attendee::ACTOR_USERS, $comment->getActorId());
+				$this->threadService->setNotificationLevel($author->getAttendee(), $thread->getId(), Participant::NOTIFY_ALWAYS, $messageId);
+			} catch (ParticipantNotFoundException) {
+				// 作者が会話から退出済みなら追跡しない
+			}
+		}
 
 		// 起点自身に metadata を書く。「起点も metadata を持つ」不変条件を保つ。
 		// ChatManager に updateComment() は無いので、pinMessage と同じく
