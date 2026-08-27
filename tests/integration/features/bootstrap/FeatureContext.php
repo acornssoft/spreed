@@ -3408,6 +3408,23 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		}
 	}
 
+	#[Then('/^user "([^"]*)" reads thread "([^"]*)"(?: up to message "([^"]*)")? in room "([^"]*)" with (\d+)(?: \((v1)\))?$/')]
+	public function userReadsThreadInRoom(string $user, string $threadTitle, ?string $message, string $identifier, int $statusCode, string $apiVersion = 'v1', ?TableNode $formData = null): void {
+		$this->setCurrentUser($user);
+		$threadId = self::$titleToThreadId[$threadTitle];
+		$this->sendRequest(
+			'POST',
+			'/apps/spreed/api/' . $apiVersion . '/chat/' . self::$identifierToToken[$identifier] . '/threads/' . $threadId . '/read',
+			($message === null || $message === '') ? null : new TableNode([['lastReadMessage', self::$textToMessageId[$message]]]),
+		);
+		$this->assertStatusCode($this->response, $statusCode);
+
+		if ($formData !== null) {
+			$result = $this->getDataFromResponse($this->response);
+			$this->compareThreadsResponse($formData, [$result]);
+		}
+	}
+
 	protected function compareThreadsResponse(?TableNode $formData, array $results): void {
 		if ($formData === null) {
 			Assert::assertEmpty($results);
@@ -3418,11 +3435,16 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		Assert::assertCount($count, $results, 'Result count does not match');
 		$tokenInResult = false;
 
+		$includeReadMarker = in_array('a.lastReadMessage', $formData->getRow(0), true);
+		$includeUnread = in_array('a.unreadMessages', $formData->getRow(0), true);
+
 		$expected = array_map(static function (array $result) use (&$tokenInResult) {
-			foreach (['t.id', 't.token', 't.title', 't.lastMessage', 'a.notificationLevel', 'firstMessage', 'lastMessage'] as $field) {
+			foreach (['t.id', 't.token', 't.title', 't.lastMessage', 'a.notificationLevel', 'a.lastReadMessage', 'firstMessage', 'lastMessage'] as $field) {
 				if (isset($result[$field])) {
 					if ($field === 'a.notificationLevel') {
 						$result[$field] = (int)$result[$field];
+					} elseif ($field === 'a.lastReadMessage' && $result[$field] === 'IGNORE') {
+						// 行ごとに比較対象から外す(actual 側は下で外す)
 					} elseif ($result[$field] === '0') {
 						$result[$field] = 0;
 					} elseif ($result[$field] === 'NULL') {
@@ -3438,13 +3460,15 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 				}
 			}
 
-			foreach (['t.numReplies'] as $field) {
-				$result[$field] = (int)$result[$field];
+			foreach (['t.numReplies', 'a.unreadMessages'] as $field) {
+				if (isset($result[$field])) {
+					$result[$field] = (int)$result[$field];
+				}
 			}
 			return $result;
 		}, $formData->getHash());
 
-		Assert::assertEquals($expected, array_map(static function ($actual) use ($tokenInResult) {
+		$actual = array_map(static function ($actual) use ($tokenInResult, $includeReadMarker, $includeUnread) {
 			$compare = [
 				't.id' => $actual['thread']['id'],
 				't.title' => $actual['thread']['title'],
@@ -3455,11 +3479,25 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 				'lastMessage' => $actual['last']['id'] ?? null,
 			];
 
+			if ($includeReadMarker) {
+				$compare['a.lastReadMessage'] = $actual['attendee']['lastReadMessage'];
+			}
+			if ($includeUnread) {
+				$compare['a.unreadMessages'] = $actual['attendee']['unreadMessages'];
+			}
 			if ($tokenInResult) {
 				$compare['t.token'] = $actual['thread']['roomToken'];
 			}
 			return $compare;
-		}, $results));
+		}, $results);
+
+		foreach ($expected as $i => $row) {
+			if (($row['a.lastReadMessage'] ?? null) === 'IGNORE') {
+				unset($expected[$i]['a.lastReadMessage'], $actual[$i]['a.lastReadMessage']);
+			}
+		}
+
+		Assert::assertEquals($expected, $actual);
 	}
 
 	#[Then('/^user "([^"]*)" searches for conversations with "([^"]*)"(?: offset "([^"]*)")? limit (\d+) expected cursor "([^"]*)"$/')]

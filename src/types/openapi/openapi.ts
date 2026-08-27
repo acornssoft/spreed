@@ -2090,6 +2090,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/ocs/v2.php/apps/spreed/api/{apiVersion}/chat/{token}/threads/{threadId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the read marker of a thread for the current user (acorns)
+         * @description Required capability: `acorns-thread-read-marker`
+         */
+        post: operations["thread-set-read-marker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -3162,6 +3182,11 @@ export type components = {
              * @description Number of unread chat messages in the conversation (only available with `chat-v2` capability)
              */
             unreadMessages: number;
+            /**
+             * Format: int64
+             * @description acorns: Number of threads with unread messages the user is tracked in (requires `acorns-thread-read-marker`)
+             */
+            unreadThreads: number;
             /** @description Flag if the conversation is archived by the user (only available with `archived-conversations-v2` capability) */
             isArchived: boolean;
             /** @description Required capability: `important-conversations` */
@@ -3345,6 +3370,16 @@ export type components = {
              * @enum {integer}
              */
             notificationLevel: 0 | 1 | 2 | 3;
+            /**
+             * Format: int64
+             * @description acorns: Last message id the user has read in this thread. 0 when the user is not tracked in this thread (requires `acorns-thread-read-marker`)
+             */
+            lastReadMessage: number;
+            /**
+             * Format: int64
+             * @description acorns: Number of unread messages in this thread for the user. 0 when not tracked (requires `acorns-thread-read-marker`)
+             */
+            unreadMessages: number;
         };
         ThreadInfo: {
             /** @description Thread details */
@@ -13865,6 +13900,84 @@ export interface operations {
                             data: {
                                 /** @enum {string} */
                                 error: "level" | "message" | "status" | "top-most";
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "thread-set-read-marker": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required to be true for the API request to pass */
+                "OCS-APIRequest": boolean;
+            };
+            path: {
+                apiVersion: "v1";
+                token: string;
+                /** @description Thread id */
+                threadId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description Message id to set as read, defaults to the last message of the thread
+                     * @default null
+                     */
+                    lastReadMessage?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Read marker set (or ignored because the user is not tracked in this thread) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: components["schemas"]["ThreadInfo"];
+                        };
+                    };
+                };
+            };
+            /** @description Federated conversation, or marker would move backwards */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                /** @enum {string} */
+                                error: "federation" | "marker";
+                            };
+                        };
+                    };
+                };
+            };
+            /** @description Thread not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ocs: {
+                            meta: components["schemas"]["OCSMeta"];
+                            data: {
+                                /** @enum {string} */
+                                error: "thread";
                             };
                         };
                     };

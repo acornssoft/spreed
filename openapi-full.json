@@ -2039,6 +2039,7 @@
                     "unreadMention",
                     "unreadMentionDirect",
                     "unreadMessages",
+                    "unreadThreads",
                     "isArchived",
                     "isImportant",
                     "isSensitive",
@@ -2328,6 +2329,12 @@
                         "type": "integer",
                         "format": "int64",
                         "description": "Number of unread chat messages in the conversation (only available with `chat-v2` capability)"
+                    },
+                    "unreadThreads": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "acorns: Number of threads with unread messages the user is tracked in (requires `acorns-thread-read-marker`)",
+                        "minimum": 0
                     },
                     "isArchived": {
                         "type": "boolean",
@@ -2731,7 +2738,9 @@
             "ThreadAttendee": {
                 "type": "object",
                 "required": [
-                    "notificationLevel"
+                    "notificationLevel",
+                    "lastReadMessage",
+                    "unreadMessages"
                 ],
                 "properties": {
                     "notificationLevel": {
@@ -2744,6 +2753,18 @@
                             3
                         ],
                         "description": "The notification level for the user in this thread (See [Participant notification levels](https://nextcloud-talk.readthedocs.io/en/latest/constants#participant-notification-levels))"
+                    },
+                    "lastReadMessage": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "acorns: Last message id the user has read in this thread. 0 when the user is not tracked in this thread (requires `acorns-thread-read-marker`)",
+                        "minimum": 0
+                    },
+                    "unreadMessages": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "acorns: Number of unread messages in this thread for the user. 0 when not tracked (requires `acorns-thread-read-marker`)",
+                        "minimum": 0
                     }
                 }
             },
@@ -28995,6 +29016,204 @@
                                                                 "message",
                                                                 "status",
                                                                 "top-most"
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ocs/v2.php/apps/spreed/api/{apiVersion}/chat/{token}/threads/{threadId}/read": {
+            "post": {
+                "operationId": "thread-set-read-marker",
+                "summary": "Set the read marker of a thread for the current user (acorns)",
+                "description": "Required capability: `acorns-thread-read-marker`",
+                "tags": [
+                    "thread"
+                ],
+                "security": [
+                    {},
+                    {
+                        "bearer_auth": []
+                    },
+                    {
+                        "basic_auth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "lastReadMessage": {
+                                        "type": "integer",
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "default": null,
+                                        "description": "Message id to set as read, defaults to the last message of the thread",
+                                        "minimum": 0
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "apiVersion",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "v1"
+                            ],
+                            "default": "v1"
+                        }
+                    },
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]{4,30}$"
+                        }
+                    },
+                    {
+                        "name": "threadId",
+                        "in": "path",
+                        "description": "Thread id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "OCS-APIRequest",
+                        "in": "header",
+                        "description": "Required to be true for the API request to pass",
+                        "required": true,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Read marker set (or ignored because the user is not tracked in this thread)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "$ref": "#/components/schemas/ThreadInfo"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Federated conversation, or marker would move backwards",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "error"
+                                                    ],
+                                                    "properties": {
+                                                        "error": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "federation",
+                                                                "marker"
+                                                            ]
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Thread not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "ocs"
+                                    ],
+                                    "properties": {
+                                        "ocs": {
+                                            "type": "object",
+                                            "required": [
+                                                "meta",
+                                                "data"
+                                            ],
+                                            "properties": {
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/OCSMeta"
+                                                },
+                                                "data": {
+                                                    "type": "object",
+                                                    "required": [
+                                                        "error"
+                                                    ],
+                                                    "properties": {
+                                                        "error": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "thread"
                                                             ]
                                                         }
                                                     }

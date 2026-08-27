@@ -407,6 +407,11 @@ class ThreadController extends AEnvironmentAwareOCSController {
 				$attendee = ThreadAttendee::createFromParticipant($thread->getId(), $participant);
 			}
 
+			// acorns: 追跡対象(行がある = lastReadMessage > 0)で新着があるときだけ数える
+			if ($attendee->getLastReadMessage() > 0 && $thread->getLastMessageId() > $attendee->getLastReadMessage()) {
+				$attendee->setUnreadMessages($this->commentsManager->getNumberOfUnreadMessagesInThread($room->getId(), $thread->getId(), $attendee->getLastReadMessage()));
+			}
+
 			$first = $comments[$thread->getId()] ?? null;
 			if ($first !== null) {
 				$firstMessage = $this->messageParser->createMessage($room, $participant, $first, $this->l);
@@ -490,6 +495,54 @@ class ThreadController extends AEnvironmentAwareOCSController {
 		$attendees = [$thread->getId() => $threadAttendee];
 		$list = $this->prepareListOfThreads([$thread], $attendees);
 
+		/** @var TalkThreadInfo $threadInfo */
+		$threadInfo = array_shift($list);
+		return new DataResponse($threadInfo);
+	}
+
+	/**
+	 * Set the read marker of a thread for the current user (acorns)
+	 *
+	 * Required capability: `acorns-thread-read-marker`
+	 *
+	 * @param int $threadId Thread id
+	 * @psalm-param non-negative-int $threadId
+	 * @param int|null $lastReadMessage Message id to set as read, defaults to the last message of the thread
+	 * @psalm-param non-negative-int|null $lastReadMessage
+	 * @return DataResponse<Http::STATUS_OK, TalkThreadInfo, array{}>|DataResponse<Http::STATUS_BAD_REQUEST, array{error: 'federation'|'marker'}, array{}>|DataResponse<Http::STATUS_NOT_FOUND, array{error: 'thread'}, array{}>
+	 *
+	 * 200: Read marker set (or ignored because the user is not tracked in this thread)
+	 * 400: Federated conversation, or marker would move backwards
+	 * 404: Thread not found
+	 */
+	#[PublicPage]
+	#[RequireModeratorOrNoLobby]
+	#[RequireParticipant]
+	#[ApiRoute(verb: 'POST', url: '/api/{apiVersion}/chat/{token}/threads/{threadId}/read', requirements: [
+		'apiVersion' => '(v1)',
+		'token' => '[a-z0-9]{4,30}',
+		'threadId' => '[0-9]+',
+	])]
+	public function setReadMarker(int $threadId, ?int $lastReadMessage = null): DataResponse {
+		if ($this->room->isFederatedConversation()) {
+			return new DataResponse(['error' => 'federation'], Http::STATUS_BAD_REQUEST);
+		}
+
+		try {
+			$thread = $this->threadService->findByThreadId($this->room->getId(), $threadId);
+		} catch (DoesNotExistException) {
+			return new DataResponse(['error' => 'thread'], Http::STATUS_NOT_FOUND);
+		}
+
+		$target = $lastReadMessage ?? $thread->getLastMessageId();
+		try {
+			$threadAttendee = $this->threadService->setLastReadMessage($this->participant->getAttendee(), $thread->getId(), $target);
+		} catch (\InvalidArgumentException) {
+			return new DataResponse(['error' => 'marker'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$attendees = $threadAttendee !== null ? [$thread->getId() => $threadAttendee] : null;
+		$list = $this->prepareListOfThreads([$thread], $attendees);
 		/** @var TalkThreadInfo $threadInfo */
 		$threadInfo = array_shift($list);
 		return new DataResponse($threadInfo);

@@ -802,6 +802,11 @@ export type components = {
              * @description Number of unread chat messages in the conversation (only available with `chat-v2` capability)
              */
             unreadMessages: number;
+            /**
+             * Format: int64
+             * @description acorns: Number of threads with unread messages the user is tracked in (requires `acorns-thread-read-marker`)
+             */
+            unreadThreads: number;
             /** @description Flag if the conversation is archived by the user (only available with `archived-conversations-v2` capability) */
             isArchived: boolean;
             /** @description Required capability: `important-conversations` */

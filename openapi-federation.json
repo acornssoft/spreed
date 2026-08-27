@@ -1004,6 +1004,7 @@
                     "unreadMention",
                     "unreadMentionDirect",
                     "unreadMessages",
+                    "unreadThreads",
                     "isArchived",
                     "isImportant",
                     "isSensitive",
@@ -1293,6 +1294,12 @@
                         "type": "integer",
                         "format": "int64",
                         "description": "Number of unread chat messages in the conversation (only available with `chat-v2` capability)"
+                    },
+                    "unreadThreads": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "acorns: Number of threads with unread messages the user is tracked in (requires `acorns-thread-read-marker`)",
+                        "minimum": 0
                     },
                     "isArchived": {
                         "type": "boolean",

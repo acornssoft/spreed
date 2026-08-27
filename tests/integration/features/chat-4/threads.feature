@@ -444,3 +444,68 @@ Feature: chat-4/threads
     And user "participant1" is participant of the following rooms (v4)
       | id   | unreadThreads |
       | room | 0             |
+
+  Scenario: acorns - Replier sees unread count in a thread and can mark it read
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant2" sends reply "Reply 1" on message "Message 1" to room "room" with 201
+    When user "participant1" sends reply "Reply 2" on message "Message 1" to room "room" with 201
+    And user "participant1" sends reply "Reply 3" on message "Message 1" to room "room" with 201
+    Then user "participant2" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 3            | Reply 3       | 0                   | Reply 1           | 2                | Message 1    | Reply 3     |
+    When user "participant2" reads thread "Message 1" up to message "Reply 2" in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 3            | Reply 3       | 0                   | Reply 2           | 1                | Message 1    | Reply 3     |
+    And user "participant2" reads thread "Message 1" in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 3            | Reply 3       | 0                   | Reply 3           | 0                | Message 1    | Reply 3     |
+    # 後戻りは 400
+    And user "participant2" reads thread "Message 1" up to message "Reply 1" in room "room" with 400
+
+  Scenario: acorns - Reading a thread does not move the conversation read marker
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant2" sends reply "Reply 1" on message "Message 1" to room "room" with 201
+    And user "participant1" sends message "Message 2" to room "room" with 201
+    And user "participant1" sends reply "Reply 2" on message "Message 1" to room "room" with 201
+    When user "participant2" reads thread "Message 1" in room "room" with 200
+    Then user "participant2" is participant of the following rooms (v4)
+      | id   | lastReadMessage | unreadMessages | unreadThreads |
+      | room | Reply 1         | 1              | 0             |
+
+  Scenario: acorns - Users not tracked in a thread get neutral read info and can not mark it
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant1" sends reply "Reply 1" on message "Message 1" to room "room" with 201
+    Then user "participant2" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 1            | Reply 1       | 0                   | 0                 | 0                | Message 1    | Reply 1     |
+    When user "participant2" reads thread "Message 1" in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
+      | Message 1 | Message 1 | 1            | Reply 1       | 0                   | 0                 | 0                | Message 1    | Reply 1     |
+
+  Scenario: acorns - Being mentioned in a thread starts tracking it with one unread message
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" adds user "participant2" to room "room" with 200 (v4)
+    And user "participant1" sends message "Message 1" to room "room" with 201
+    And user "participant1" creates thread from message "Message 1" in room "room" with 200
+    And user "participant1" sends reply "Reply 1" on message "Message 1" to room "room" with 201
+    When user "participant1" sends reply "Hello @participant2" on message "Message 1" to room "room" with 201
+    Then user "participant2" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage       | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage         |
+      | Message 1 | Message 1 | 2            | Hello @participant2 | 0                   | Reply 1           | 1                | Message 1    | Hello @participant2 |
