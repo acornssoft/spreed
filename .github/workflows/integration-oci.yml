@@ -206,3 +206,5 @@ jobs:
     steps:
       - name: Summary status
         run: if ${{ needs.changes.outputs.src != 'false' && needs.integration-oci.result != 'success' }}; then exit 1; fi
+
+# ci: trigger run for acorns/thread-unread (throwaway PR, not merged)
