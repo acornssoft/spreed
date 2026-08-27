@@ -11,108 +11,41 @@ namespace OCA\Talk\Migration;
 use OCA\Talk\Chat\ChatManager;
 use OCA\Talk\Model\Message;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 
 /**
- * acorns: スレッド所属の権威を metadata に移したことに伴うバックフィル。2 段構成。
+ * acorns: スレッド所属の権威を metadata に移したことに伴うバックフィル(冪等)。
  *
- * ## 第 1 段: 既存スレッドの member(一度だけ)
+ * ReactionManager が metadata を継承するようになる前(fef9f87c3a より前)に付いた
+ * リアクションは thread_id を持たない。親が thread_id を持つのに自分が持たない
+ * リアクション行へ親の値をコピーする。判定は親の metadata なので、
+ * チャンネルに残した引用返信(threadId=-2)へのリアクションは触らない。
  *
- * thread_id metadata の書き込みは v24.0.0 で入ったが、スレッド機能自体は
- * v22.0.0 からある。さらに v24 の時点でも addSystemMessage()(ファイル共有等)は
- * metadata を書かない。したがって既存のスレッド member には metadata が無いものが
- * 混ざっており、権威を metadata に移すとスレッドビューから消える。
+ * ## 削除した第 1 段について
  *
- * talk_threads の各行について topmost_parent_id = thread.id の oc_comments 行に
- * thread_id を JSON マージする。
- *
- * **この段は一度しか走らせてはいけない。** フォーク稼働後に書かれた
- * チャンネル残留の引用返信(threadId=-2)は「topmost がスレッド起点で metadata 無し」で、
- * 移行前のスレッド返信と DB 上は区別できない。再実行するとそれらがスレッドに畳まれる。
- * 完了は app config `thread_metadata_backfill_done` で記録し、以後は飛ばす。
- * 既にこの段を実行済みの環境(本番)では、repair を回す前に手動で
- * `occ config:app:set spreed thread_metadata_backfill_done --value=1 --type=boolean` を入れること
- * (`--type` を省くと string で保存され、getValueBool() が型不一致で例外を投げる)。
- *
- * ## 第 2 段: リアクションの継承(毎回・冪等)
- *
- * ReactionManager が metadata を継承するようになる前に付いたリアクションは
- * thread_id を持たない。親が thread_id を持つのに自分が持たないリアクション行へ
- * 親の値をコピーする。判定は親の metadata なので引用返信のリアクションは触らない。
+ * 以前はここに「talk_threads の各スレッドについて topmost_parent_id = thread.id の
+ * コメントへ thread_id を付ける」段があった(upstream 時代のスレッドデータを
+ * フォークへ初めて載せるときに一度だけ必要)。本番・ローカルとも 2026-08-27 に
+ * 実行済みで、**再実行するとフォーク稼働後の引用返信がスレッドに畳まれる**
+ * (topmost がスレッド起点で metadata 無し、という点で移行前の返信と区別できない)。
+ * 事故の芽なので削除した。upstream のデータを新しく取り込む必要が出たら
+ * `fef9f87c3a` の backfillThreadMembers() を一度だけ手で流すこと。
  */
 class BackfillThreadMetadata implements IRepairStep {
-	public const CONFIG_LEGACY_DONE = 'thread_metadata_backfill_done';
-
 	public function __construct(
 		protected IDBConnection $connection,
-		protected IAppConfig $appConfig,
 	) {
 	}
 
 	#[\Override]
 	public function getName(): string {
-		return 'Backfill thread_id metadata for messages in existing threads (acorns)';
+		return 'Inherit thread_id metadata to reactions on thread messages (acorns)';
 	}
 
 	#[\Override]
 	public function run(IOutput $output): void {
-		if ($this->appConfig->getValueBool('spreed', self::CONFIG_LEGACY_DONE)) {
-			$output->info('acorns: 既存スレッド member のバックフィルは実行済みのため飛ばします');
-		} else {
-			$this->backfillThreadMembers($output);
-			$this->appConfig->setValueBool('spreed', self::CONFIG_LEGACY_DONE, true);
-		}
-
-		$this->backfillReactions($output);
-	}
-
-	/**
-	 * 第 1 段: talk_threads にあるスレッドの member へ thread_id を付ける
-	 */
-	protected function backfillThreadMembers(IOutput $output): void {
-		$threads = $this->connection->getQueryBuilder();
-		$threads->select('id', 'room_id')->from('talk_threads');
-		$result = $threads->executeQuery();
-
-		$threadCount = 0;
-		$updated = 0;
-
-		while ($thread = $result->fetch()) {
-			$threadCount++;
-			$threadId = (int)$thread['id'];
-
-			// このスレッドに属し得るコメント(起点自身 + topmost が起点のもの)
-			$select = $this->connection->getQueryBuilder();
-			$select->select('id', 'meta_data')
-				->from('comments')
-				->where($select->expr()->orX(
-					$select->expr()->eq('id', $select->createNamedParameter((string)$threadId)),
-					$select->expr()->eq('topmost_parent_id', $select->createNamedParameter((string)$threadId)),
-				));
-			$comments = $select->executeQuery();
-
-			while ($comment = $comments->fetch()) {
-				if ($this->writeThreadId((string)$comment['id'], (string)$comment['meta_data'], $threadId)) {
-					$updated++;
-				}
-			}
-			$comments->closeCursor();
-		}
-		$result->closeCursor();
-
-		$output->info(sprintf(
-			'acorns: %d スレッドを走査し、%d 件のメッセージに thread_id metadata を書き込みました',
-			$threadCount, $updated
-		));
-	}
-
-	/**
-	 * 第 2 段: 親が thread_id を持つリアクションへ親の値をコピーする
-	 */
-	protected function backfillReactions(IOutput $output): void {
 		$select = $this->connection->getQueryBuilder();
 		$select->select('c.id', 'c.meta_data', 'p.meta_data AS parent_meta_data')
 			->from('comments', 'c')
