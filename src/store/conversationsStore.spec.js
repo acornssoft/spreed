@@ -37,6 +37,7 @@ import {
 } from '../services/conversationsService.ts'
 import { setConversationUnread, updateLastReadMessage } from '../services/messagesService.ts'
 import { useActorStore } from '../stores/actor.ts'
+import { useChatExtrasStore } from '../stores/chatExtras.ts'
 import { useTalkHashStore } from '../stores/talkHash.js'
 import { generateOCSErrorResponse, generateOCSResponse } from '../test-helpers.js'
 import storeConfig from './storeConfig.js'
@@ -1266,5 +1267,70 @@ describe('conversationsStore', () => {
 		expect(setCallPermissions).toHaveBeenCalledWith(testToken, permissions)
 
 		expect(store.getters.conversation(testToken).callPermissions).toBe(permissions)
+	})
+
+	describe('updateConversationLastMessageFromNotification', () => {
+		let updateUnreadMessagesMutation
+		let chatExtrasStore
+
+		beforeEach(() => {
+			updateUnreadMessagesMutation = vi.fn()
+			testStoreConfig.modules.conversationsStore.mutations.updateUnreadMessages = updateUnreadMessagesMutation
+			store = createStore(testStoreConfig)
+			chatExtrasStore = useChatExtrasStore()
+
+			testConversation.unreadMessages = 1
+			testConversation.unreadMention = 0
+			testConversation.unreadMentionDirect = false
+			testConversation.lastMessage = { ...previousLastMessage, timestamp: 1672531200 }
+			store.dispatch('addConversation', testConversation)
+		})
+
+		/**
+		 * Generates a chat message notification payload
+		 *
+		 * @param {string} objectId notification objectId (token/messageId[/threadId])
+		 * @return {object} notification payload
+		 */
+		function generateNotification(objectId) {
+			return {
+				objectId,
+				datetime: '2023-01-02T00:00:00.000Z',
+				subjectRichParameters: {
+					user: { type: 'user', id: 'alice', name: 'Alice' },
+				},
+				messageRich: 'Hello',
+				messageRichParameters: {},
+				user: 'current-user',
+			}
+		}
+
+		test('increases unread counter for a regular message notification', async () => {
+			await store.dispatch('updateConversationLastMessageFromNotification', {
+				notification: generateNotification(testToken + '/201'),
+			})
+
+			expect(updateUnreadMessagesMutation).toHaveBeenCalledWith(expect.anything(), {
+				token: testToken,
+				unreadMessages: 2,
+				unreadMention: 0,
+				unreadMentionDirect: false,
+			})
+			expect(store.getters.conversation(testToken).lastMessage.id).toBe(201)
+		})
+
+		test('does not increase unread counter for a thread reply notification', async () => {
+			const bumpThreadUnreadSpy = vi.spyOn(chatExtrasStore, 'bumpThreadUnread')
+
+			await store.dispatch('updateConversationLastMessageFromNotification', {
+				notification: generateNotification(testToken + '/201/138'),
+			})
+
+			expect(updateUnreadMessagesMutation).not.toHaveBeenCalled()
+			expect(bumpThreadUnreadSpy).toHaveBeenCalledWith(testToken, 138)
+			// lastMessage and activity are still updated
+			expect(store.getters.conversation(testToken).lastMessage.id).toBe(201)
+			expect(store.getters.conversation(testToken).lastActivity).toBe(1672617600)
+		})
 	})
 })

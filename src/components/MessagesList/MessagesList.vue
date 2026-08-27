@@ -255,7 +255,7 @@ export default {
 
 	computed: {
 		visualLastReadMessageId() {
-			return this.$store.getters.getVisualLastReadMessageId(this.token)
+			return this.$store.getters.getVisualLastReadMessageId(this.token, this.threadId)
 		},
 
 		/**
@@ -667,6 +667,7 @@ export default {
 				} else {
 					this.$store.dispatch('setVisualLastReadMessageId', {
 						token: this.token,
+						threadId: this.threadId,
 						id: fallbackLastReadMessageId,
 					})
 				}
@@ -842,6 +843,16 @@ export default {
 			if (!this.conversation) {
 				return
 			}
+			if (this.threadId) {
+				// acorns: スレッド表示ではスレッドの既読位置を区切り線に使う。追跡対象でなければ出さない
+				const attendee = this.chatExtrasStore.getThread(this.token, this.threadId)?.attendee
+				this.$store.dispatch('setVisualLastReadMessageId', {
+					token: this.token,
+					threadId: this.threadId,
+					id: attendee?.lastReadMessage || 0,
+				})
+				return
+			}
 			console.debug('setVisualLastReadMessageId token=' + this.token + ' id=' + this.conversation.lastReadMessage)
 			this.$store.dispatch('setVisualLastReadMessageId', {
 				token: this.token,
@@ -884,6 +895,12 @@ export default {
 		 * conversation in refreshReadMarkerPosition()
 		 */
 		updateReadMarkerPosition() {
+			if (this.threadId) {
+				// acorns: スレッド表示では会話の既読 action を呼ばず、スレッドの既読だけを進める
+				this.updateThreadReadMarkerPosition()
+				return
+			}
+
 			if (!this.conversation) {
 				return
 			}
@@ -939,6 +956,50 @@ export default {
 		},
 
 		/**
+		 * acorns: updateReadMarkerPosition() のスレッド版。
+		 * 会話の既読位置は一切触らず、スレッドの既読だけをサーバに送る(spec §6.1)。
+		 */
+		updateThreadReadMarkerPosition() {
+			const attendee = this.chatExtrasStore.getThread(this.token, this.threadId)?.attendee
+			if (!attendee || attendee.lastReadMessage === 0) {
+				// 追跡対象でない
+				return
+			}
+
+			// if we're at bottom of the thread with no more new messages to load, mark all as read
+			if (this.isSticky && this.isChatEndReached) {
+				this.chatExtrasStore.updateThreadReadMarker(this.token, this.threadId)
+				return
+			}
+
+			// first unread message has not been seen yet, so don't move it
+			if (!this.isUnreadMarkerSeen) {
+				return
+			}
+
+			const lastReadMessageElement = this.getVisualLastReadMessageElement()
+			if (lastReadMessageElement && this.$refs.scroller
+				&& (lastReadMessageElement.offsetTop - this.$refs.scroller.scrollTop > 0)) {
+				// still visible, hasn't disappeared at the top yet
+				return
+			}
+
+			const firstVisibleMessage = this.findFirstVisibleMessage(lastReadMessageElement)
+			if (!firstVisibleMessage) {
+				console.warn('First visible message not found: ', firstVisibleMessage)
+				return
+			}
+
+			const messageId = parseInt(firstVisibleMessage.getAttribute('data-message-id'), 10)
+			if (messageId <= attendee.lastReadMessage) {
+				// it was probably a scroll up, don't update
+				return
+			}
+
+			this.chatExtrasStore.updateThreadReadMarker(this.token, this.threadId, messageId)
+		},
+
+		/**
 		 * Scrolls to the bottom of the list.
 		 *
 		 * @param {object} options Options for scrolling
@@ -985,7 +1046,12 @@ export default {
 
 				// If it is a forced scroll to bottom, we need to update the read marker immediately
 				if (options?.force) {
-					this.$store.dispatch('clearLastReadMessage', { token: this.token, updateVisually: true })
+					if (this.threadId) {
+						// acorns: スレッドではスレッドの既読を末尾まで進める(会話の既読は触らない)
+						this.chatExtrasStore.updateThreadReadMarker(this.token, this.threadId)
+					} else {
+						this.$store.dispatch('clearLastReadMessage', { token: this.token, updateVisually: true })
+					}
 				}
 			})
 		},

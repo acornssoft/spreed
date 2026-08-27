@@ -860,7 +860,7 @@ const actions = {
 	},
 
 	async updateConversationLastMessageFromNotification({ getters, commit }, { notification }) {
-		const [token, messageId] = notification.objectId.split('/')
+		const [token, messageId, threadId] = notification.objectId.split('/')
 
 		if (!getters.conversations[token]) {
 			// Conversation not loaded yet, skipping
@@ -899,6 +899,17 @@ const actions = {
 			systemMessage: '',
 		}
 
+		conversation.lastActivity = lastMessage.timestamp
+
+		commit('addConversation', conversation)
+		commit('updateConversationLastMessage', { token, lastMessage })
+
+		// acorns: スレッド返信は会話の未読に数えない(spec §5.2)。スレッド側は chatExtras が持つ
+		if (threadId) {
+			useChatExtrasStore().bumpThreadUnread(token, parseInt(threadId, 10))
+			return
+		}
+
 		const unreadCounterUpdate = {
 			token,
 			unreadMessages: conversation.unreadMessages,
@@ -922,10 +933,7 @@ const actions = {
 				}
 			})
 		}
-		conversation.lastActivity = lastMessage.timestamp
 
-		commit('addConversation', conversation)
-		commit('updateConversationLastMessage', { token, lastMessage })
 		commit('updateUnreadMessages', unreadCounterUpdate)
 	},
 

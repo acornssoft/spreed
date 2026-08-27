@@ -1430,6 +1430,36 @@ describe('messagesStore', () => {
 					}]
 					await testUpdateMessageCounters(messages, false)
 				})
+
+				test('does not count thread replies as unread channel messages', async () => {
+					// thread information is fetched for the reply's thread
+					getSingleThreadForConversation.mockResolvedValueOnce(generateOCSResponse({
+						payload: {
+							thread: { id: 90, numReplies: 1, lastActivity: 0, lastMessageId: 101 },
+							attendee: { notificationLevel: 0, lastReadMessage: 0, unreadMessages: 0 },
+							first: null,
+							last: null,
+						},
+					}))
+					const messages = [{
+						// thread reply (not the thread-starting message)
+						id: 101,
+						token: TOKEN,
+						actorType: ATTENDEE.ACTOR_TYPE.USERS,
+						isThread: true,
+						threadId: 90,
+					}, {
+						id: 102,
+						token: TOKEN,
+						actorType: ATTENDEE.ACTOR_TYPE.GUESTS,
+					}]
+					const expectedPayload = {
+						token: TOKEN,
+						unreadMessages: 145,
+						unreadMention: undefined,
+					}
+					await testUpdateMessageCounters(messages, expectedPayload)
+				})
 			})
 
 			describe('updating unread mention flag', () => {

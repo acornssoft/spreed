@@ -170,9 +170,10 @@ const getters = {
 		})
 	},
 
-	getVisualLastReadMessageId: (state) => (token) => {
-		if (state.visualLastReadMessageId[token]) {
-			return state.visualLastReadMessageId[token]
+	getVisualLastReadMessageId: (state) => (token, threadId = 0) => {
+		const key = threadId ? token + ':' + threadId : token
+		if (state.visualLastReadMessageId[key]) {
+			return state.visualLastReadMessageId[key]
 		}
 		return null
 	},
@@ -331,9 +332,10 @@ const mutations = {
 	 * @param {object} data the wrapping object;
 	 * @param {string} data.token Token of the conversation
 	 * @param {string} data.id Id of the last read chat message
+	 * @param {number} [data.threadId] Id of the thread (0 for the conversation itself)
 	 */
-	setVisualLastReadMessageId(state, { token, id }) {
-		state.visualLastReadMessageId[token] = id
+	setVisualLastReadMessageId(state, { token, id, threadId = 0 }) {
+		state.visualLastReadMessageId[threadId ? token + ':' + threadId : token] = id
 	},
 
 	/**
@@ -361,8 +363,11 @@ const mutations = {
 	 * @param {number} payload.id the id of the message to be the first one after clear;
 	 */
 	clearMessagesHistory(state, { token, id }) {
-		if (state.visualLastReadMessageId[token] && state.visualLastReadMessageId[token] < id) {
-			state.visualLastReadMessageId[token] = id
+		// Adjust visual last read markers of the conversation and its threads
+		for (const key of Object.keys(state.visualLastReadMessageId)) {
+			if ((key === token || key.startsWith(token + ':')) && state.visualLastReadMessageId[key] < id) {
+				state.visualLastReadMessageId[key] = id
+			}
 		}
 
 		if (state.messages[token]) {
@@ -579,10 +584,14 @@ const actions = {
 		if (message.referenceId) {
 			const tempMessages = context.getters.getTemporaryReferences(token, message.referenceId)
 			if (tempMessages.length > 0) {
-				if (actorStore.checkIfSelfIsActor(message)
-					&& conversation?.lastReadMessage
-					&& message.id > conversation.lastReadMessage) {
-					context.dispatch('updateLastReadMessage', { token, id: message.id, updateVisually: true })
+				if (actorStore.checkIfSelfIsActor(message)) {
+					if (message.isThread && message.id !== message.threadId) {
+						// acorns: 自分のスレッド返信はスレッドの既読だけを進める(会話の既読は触らない)
+						chatExtrasStore.updateThreadReadMarker(token, message.threadId, message.id)
+					} else if (conversation?.lastReadMessage
+						&& message.id > conversation.lastReadMessage) {
+						context.dispatch('updateLastReadMessage', { token, id: message.id, updateVisually: true })
+					}
 				}
 
 				// If successful, deletes the temporary message from the store
@@ -815,9 +824,10 @@ const actions = {
 	 * @param {object} data the wrapping object;
 	 * @param {string} data.token Token of the conversation
 	 * @param {string} data.id Id of the last read chat message
+	 * @param {number} [data.threadId] Id of the thread (0 for the conversation itself)
 	 */
-	setVisualLastReadMessageId(context, { token, id }) {
-		context.commit('setVisualLastReadMessageId', { token, id })
+	setVisualLastReadMessageId(context, { token, id, threadId = 0 }) {
+		context.commit('setVisualLastReadMessageId', { token, id, threadId })
 	},
 
 	/**
@@ -1194,7 +1204,12 @@ const actions = {
 			if ((!lastMessage || message.id > lastMessage.id) && !isHiddenSystemMessage(message)) {
 				if (!message.systemMessage) {
 					if (actorId !== message.actorId || actorType !== message.actorType) {
-						countNewMessages++
+						// acorns: スレッド返信(起点以外)は会話の未読に数えない
+						if (message.isThread && message.id !== message.threadId) {
+							useChatExtrasStore().bumpThreadUnread(token, message.threadId)
+						} else {
+							countNewMessages++
+						}
 					}
 
 					// parse mentions data to update "conversation.unreadMention",
