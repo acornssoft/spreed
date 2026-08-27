@@ -415,6 +415,11 @@ export default {
 			if (!this.threadId || !newValue) {
 				return
 			}
+			// 既に末尾まで既読(= 楽観更新後の値)なら区切り線は出さない
+			const thread = this.chatExtrasStore.getThread(this.token, this.threadId)?.thread
+			if (thread && newValue >= thread.lastMessageId) {
+				return
+			}
 			// acorns: スレッド情報の到着遅延の保険。スレッドキーの視覚既読が未設定のときだけ設定する
 			if (this.$store.getters.getVisualLastReadMessageId(this.token, this.threadId) === null) {
 				this.$store.dispatch('setVisualLastReadMessageId', {
@@ -863,6 +868,10 @@ export default {
 			}
 			if (this.threadId) {
 				// acorns: スレッド表示ではスレッドの既読位置を区切り線に使う。追跡対象でなければ出さない
+				// 設定済みなら動かさない(既読を進めても区切り線は開いた時点の位置で固定)
+				if (this.$store.getters.getVisualLastReadMessageId(this.token, this.threadId) !== null) {
+					return
+				}
 				const attendee = this.chatExtrasStore.getThread(this.token, this.threadId)?.attendee
 				this.$store.dispatch('setVisualLastReadMessageId', {
 					token: this.token,

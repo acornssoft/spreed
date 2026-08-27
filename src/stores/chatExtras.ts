@@ -353,6 +353,10 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 			return
 		}
 		if (current) {
+			// acorns: 楽観更新の前に視覚既読を「その時点」の値で確定する(区切り線は開いた時点の位置で固定)
+			if (vuexStore.getters.getVisualLastReadMessageId(token, threadId) === null) {
+				vuexStore.dispatch('setVisualLastReadMessageId', { token, threadId, id: current.attendee.lastReadMessage })
+			}
 			// 楽観更新
 			current.attendee.lastReadMessage = lastReadMessage ?? current.thread.lastMessageId
 			current.attendee.unreadMessages = 0

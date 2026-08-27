@@ -5,10 +5,12 @@
 
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createStore, useStore } from 'vuex'
 import BrowserStorage from '../../services/BrowserStorage.js'
 import { hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { EventBus } from '../../services/EventBus.ts'
 import { setThreadReadMarker } from '../../services/messagesService.ts'
+import storeConfig from '../../store/storeConfig.js'
 import { generateOCSResponse } from '../../test-helpers.js'
 import { useChatExtrasStore } from '../chatExtras.ts'
 
@@ -33,8 +35,11 @@ vi.mock('../../services/messagesService.ts', async (importOriginal) => ({
 describe('chatExtrasStore', () => {
 	const token = 'TOKEN'
 	let chatExtrasStore
+	let vuexStore
 
 	beforeEach(async () => {
+		vuexStore = createStore(storeConfig)
+		useStore.mockReturnValue(vuexStore)
 		setActivePinia(createPinia())
 		chatExtrasStore = useChatExtrasStore()
 	})
@@ -259,6 +264,20 @@ describe('chatExtrasStore', () => {
 			expect(chatExtrasStore.getThread(token, 138).attendee.unreadMessages).toBe(3)
 			expect(chatExtrasStore.getThread(token, 139).attendee.unreadMessages).toBe(0)
 			expect(chatExtrasStore.getUnreadThreadsCount(token)).toBe(1)
+		})
+
+		it('pins the visual read marker to the value before the optimistic update', async () => {
+			chatExtrasStore.addThread(token, threadInfo()) // lastReadMessage: 150, lastMessageId: 200
+			setThreadReadMarker.mockResolvedValue(generateOCSResponse({ payload: threadInfo({ lastReadMessage: 200, unreadMessages: 0 }) }))
+
+			await chatExtrasStore.updateThreadReadMarker(token, 138)
+
+			// 視覚既読は楽観更新前の値(150)で確定し、既読が 200 まで進んでも動かない
+			expect(vuexStore.getters.getVisualLastReadMessageId(token, 138)).toBe(150)
+
+			// 設定済みなら上書きしない
+			await chatExtrasStore.updateThreadReadMarker(token, 138, 199)
+			expect(vuexStore.getters.getVisualLastReadMessageId(token, 138)).toBe(150)
 		})
 	})
 })
