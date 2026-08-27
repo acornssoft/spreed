@@ -16,6 +16,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActionSeparator from '@nextcloud/vue/components/NcActionSeparator'
+import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 import NcDateTime from '@nextcloud/vue/components/NcDateTime'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
@@ -42,6 +43,7 @@ const chatExtrasStore = useChatExtrasStore()
 const submenu = ref<string | null>(null)
 
 const lastActivity = computed(() => thread.thread.lastActivity * 1000)
+const unread = computed(() => thread.attendee.unreadMessages ?? 0)
 const subname = computed(() => {
 	const threadMessage = thread.last ?? thread.first
 	if (!threadMessage) {
@@ -115,6 +117,7 @@ function handleActionsMenuOpen(open: boolean) {
 		:name="thread.thread.title"
 		:to="to"
 		:active="active"
+		:bold="unread > 0"
 		forceMenu
 		@update:menuOpen="handleActionsMenuOpen">
 		<template #icon>
@@ -183,6 +186,12 @@ function handleActionsMenuOpen(open: boolean) {
 		</template>
 		<template #details>
 			<span class="thread__details">
+				<NcCounterBubble
+					v-if="unread > 0"
+					class="thread__unread"
+					type="highlighted"
+					:count="unread"
+					:aria-label="t('spreed', '{count} unread messages in thread', { count: unread })" />
 				<span class="thread__details-replies">
 					<IconArrowLeftTop class="bidirectional-icon" :size="16" />
 					{{ thread.thread.numReplies }}

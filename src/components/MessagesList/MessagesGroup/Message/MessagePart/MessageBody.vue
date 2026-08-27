@@ -167,13 +167,19 @@
 			<NcButton
 				v-if="isThreadStarterMessage && message.threadId !== -1"
 				class="message-actions__thread"
-				:class="{ light: isSplitViewEnabled && isOwnMessage }"
+				:class="{ light: isSplitViewEnabled && isOwnMessage, 'message-actions__thread--unread': threadUnread > 0 }"
 				size="small"
+				:variant="threadUnread > 0 ? 'primary' : 'secondary'"
 				@click="handleThreadClick">
 				<template #icon>
 					<IconArrowLeftTop class="bidirectional-icon" :size="16" />
 				</template>
 				{{ threadNumReplies }}
+				<NcCounterBubble
+					v-if="threadUnread > 0"
+					type="highlighted"
+					:count="threadUnread"
+					class="message-actions__thread-unread" />
 			</NcButton>
 			<slot name="default" />
 		</div>
@@ -186,6 +192,7 @@ import { n, t } from '@nextcloud/l10n'
 import emojiRegex from 'emoji-regex'
 import { inject, toRefs } from 'vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 import NcRichText from '@nextcloud/vue/components/NcRichText'
 import IconAlertCircleOutline from 'vue-material-design-icons/AlertCircleOutline.vue'
 import IconArrowLeftTop from 'vue-material-design-icons/ArrowLeftTop.vue'
@@ -228,6 +235,7 @@ export default {
 		AvatarWrapper,
 		CallButton,
 		NcButton,
+		NcCounterBubble,
 		NcRichText,
 		PollCard,
 		MessageQuote,
@@ -370,6 +378,10 @@ export default {
 
 		threadInfo() {
 			return this.chatExtrasStore.getThread(this.message.token, this.message.threadId)
+		},
+
+		threadUnread() {
+			return this.threadInfo?.attendee.unreadMessages ?? 0
 		},
 
 		threadTitle() {
@@ -863,6 +875,12 @@ export default {
 
 	&__thread :deep(.button-vue__text) {
 		margin-inline-start: calc(var(--default-grid-baseline) / 2);
+	}
+
+	&__thread--unread :deep(.counter-bubble__counter) {
+		// Invert highlighted colors for readability on primary button
+		background-color: var(--color-primary-element-text);
+		color: var(--color-primary-element);
 	}
 }
 

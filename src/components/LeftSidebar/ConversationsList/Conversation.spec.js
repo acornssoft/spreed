@@ -267,6 +267,23 @@ describe('ConversationItem.vue', () => {
 		})
 	})
 
+	describe('unread threads badge', () => {
+		test('shows unread threads badge when unreadThreads > 0', () => {
+			item.unreadMessages = 0
+			item.unreadThreads = 2
+			const wrapper = mountConversation()
+			const badge = wrapper.find('.conversation__unread-threads')
+			expect(badge.exists()).toBeTruthy()
+			expect(badge.text()).toContain('2')
+		})
+
+		test('hides unread threads badge when unreadThreads is 0', () => {
+			item.unreadThreads = 0
+			const wrapper = mountConversation()
+			expect(wrapper.find('.conversation__unread-threads').exists()).toBeFalsy()
+		})
+	})
+
 	describe('actions and routing', () => {
 		test('change route on click event', async () => {
 			await router.isReady()

@@ -81,7 +81,7 @@ import IconFileUpload from '../../img/material-icons/file-upload.svg?raw'
 import { useGetThreadId } from '../composables/useGetThreadId.ts'
 import { useGetToken } from '../composables/useGetToken.ts'
 import { CONVERSATION, PARTICIPANT } from '../constants.ts'
-import { getTalkConfig } from '../services/CapabilitiesManager.ts'
+import { getTalkConfig, hasTalkFeature } from '../services/CapabilitiesManager.ts'
 import { EventBus } from '../services/EventBus.ts'
 import { useActorStore } from '../stores/actor.ts'
 import { useChatExtrasStore } from '../stores/chatExtras.ts'
@@ -190,6 +190,17 @@ export default {
 			return this.isGuestWithoutDisplayName
 				&& !this.conversation.hasCall
 				&& !this.conversation.objectType !== CONVERSATION.OBJECT_TYPE.VIDEO_VERIFICATION
+		},
+	},
+
+	watch: {
+		token: {
+			immediate: true,
+			handler(value) {
+				if (value && hasTalkFeature(value, 'threads')) {
+					this.chatExtrasStore.fetchRecentThreadsList(value)
+				}
+			},
 		},
 	},
 

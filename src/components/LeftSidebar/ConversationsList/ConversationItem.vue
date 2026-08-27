@@ -43,6 +43,12 @@
 				<span class="hidden-visually">{{ iconType.text }}</span>
 			</template>
 			<span class="text"> {{ item.displayName }} </span>
+			<span
+				v-if="item.unreadThreads && !compact"
+				class="conversation__unread-threads"
+				:title="t('spreed', '{count} threads with unread messages', { count: item.unreadThreads })">
+				<IconForumOutline :size="14" />{{ item.unreadThreads }}
+			</span>
 		</template>
 		<template v-if="!compact && !item.isSensitive && !isVoiceRoom" #subname>
 			<span class="conversation__subname" :title="conversationInformation.title">
@@ -313,6 +319,7 @@ import IconBellRingOutline from 'vue-material-design-icons/BellRingOutline.vue'
 import IconCogOutline from 'vue-material-design-icons/CogOutline.vue'
 import IconContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import IconExitToApp from 'vue-material-design-icons/ExitToApp.vue'
+import IconForumOutline from 'vue-material-design-icons/ForumOutline.vue'
 import IconMessageAlertOutline from 'vue-material-design-icons/MessageAlertOutline.vue'
 import IconMessageBadgeOutline from 'vue-material-design-icons/MessageBadgeOutline.vue'
 import IconMinusCircleOutline from 'vue-material-design-icons/MinusCircleOutline.vue'
@@ -359,6 +366,7 @@ export default {
 		IconContentCopy,
 		IconTrashCanOutline,
 		IconExitToApp,
+		IconForumOutline,
 		IconMessageAlertOutline,
 		IconMessageBadgeOutline,
 		IconPhoneRingOutline,
@@ -773,10 +781,18 @@ export default {
 		}
 	}
 
+	&__unread-threads {
+		display: inline-flex;
+		align-items: center;
+		gap: calc(var(--default-grid-baseline) / 2);
+		flex-shrink: 0;
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small);
+	}
+
 	&__subname {
 		display: flex;
 		gap: var(--default-grid-baseline);
-
 		&-actor {
 			flex: 0 1 auto;
 			overflow: hidden;
