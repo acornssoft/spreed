@@ -73,8 +73,9 @@ function openPollEditor(payload: Events['poll-editor-open']) {
 	token.value = payload.token
 	container.value = payload.selector
 	// acorns: ペインから開いた投票の投稿先スレッド(設計書 §4.7)。
-	// PollDraftHandler からの再 emit には threadId が無いので、その場合は直前の値を維持する
-	if (payload.threadId !== undefined) {
+	// NewMessageAttachments は常にキーあり(チャンネルは明示的 undefined = 毎回上書き)、
+	// PollDraftHandler からの再 emit はキー無し(直前の値を維持)なので、キーの有無で判定する
+	if ('threadId' in payload) {
 		threadId.value = payload.threadId
 	}
 	showPollEditor.value = true

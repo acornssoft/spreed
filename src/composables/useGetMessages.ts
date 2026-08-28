@@ -461,6 +461,10 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			// acorns: スレッド表示の初回オープンではスレッドの既読位置を区切り線に使う
 			if (!chatExtrasStore.getThread(token, contextThreadId.value)) {
 				await chatExtrasStore.fetchSingleThread(token, contextThreadId.value)
+				// acorns: await 中に会話が切り替わっていたら抜ける。後続の状態更新は新トークン側に任せる
+				if (currentToken.value !== token) {
+					return
+				}
 			}
 			const threadLastReadMessage = chatExtrasStore.getThread(token, contextThreadId.value)?.attendee.lastReadMessage ?? 0
 			// 未設定のときだけ設定する。設定済み(updateThreadReadMarker が pin 済み等)ならその値を使う
@@ -483,6 +487,11 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				console.debug(exception)
 			}
 
+			// acorns: await 中に会話が切り替わっていたら抜ける(cancel されても catch で握り潰すため明示ガード)
+			if (currentToken.value !== token) {
+				return
+			}
+
 			// Checking after server response, compare to actual conversation in store
 			const conversation: Conversation | undefined = store.getters.conversation(token)
 			// If last message is not present in the initial context,
@@ -490,6 +499,10 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			if (conversation?.lastMessage && 'id' in conversation.lastMessage
 				&& !chatStore.hasMessage(token, { messageId: conversation.lastMessage.id })) {
 				await store.dispatch('processMessage', { token, message: conversation.lastMessage })
+				// acorns: await 中に会話が切り替わっていたら抜ける
+				if (currentToken.value !== token) {
+					return
+				}
 				chatStore.processChatBlocks(token, [conversation.lastMessage])
 			}
 
@@ -500,6 +513,16 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			}
 		} else {
 			await checkContextAndFocusMessage(token, contextMessageId.value, contextThreadId.value, focusMessageId !== null)
+			// acorns: await 中に会話が切り替わっていたら抜ける
+			if (currentToken.value !== token) {
+				return
+			}
+		}
+
+		// acorns: ここまでのいずれかの await で会話が切り替わっていたら、isInitialisingMessages を
+		// 新トークン側の true に戻させないよう return する
+		if (currentToken.value !== token) {
+			return
 		}
 
 		isInitialisingMessages.value = false
