@@ -1196,6 +1196,33 @@ describe('messagesStore', () => {
 				expect(cancelFunctionMocks[1]).toHaveBeenCalledWith('canceled')
 				expect(store.state.cancelFetchMessages).toStrictEqual({})
 			})
+			test('cancelFetchMessages with requestIdPrefix cancels all requests of the token but not similar tokens', () => {
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:138`,
+				}).catch(() => {})
+
+				store.dispatch('fetchMessages', {
+					token: `${TOKEN}2`,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}2:0`,
+				}).catch(() => {})
+
+				store.dispatch('cancelFetchMessages', { requestIdPrefix: TOKEN })
+
+				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
+				expect(cancelFunctionMocks[1]).toHaveBeenCalledWith('canceled')
+				// `T2:0` は `T` prefix では止まらない
+				expect(cancelFunctionMocks[2]).not.toHaveBeenCalled()
+				expect(store.state.cancelFetchMessages).toStrictEqual({ [`${TOKEN}2:0`]: cancelFunctionMocks[2] })
+			})
 		})
 
 		describe('getMessageContext', () => {
@@ -1252,6 +1279,33 @@ describe('messagesStore', () => {
 				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
 				expect(cancelFunctionMocks[1]).toHaveBeenCalledWith('canceled')
 				expect(store.state.cancelGetMessageContext).toStrictEqual({})
+			})
+			test('cancelGetMessageContext with requestIdPrefix cancels all requests of the token but not similar tokens', () => {
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:138`,
+				}).catch(() => {})
+
+				store.dispatch('getMessageContext', {
+					token: `${TOKEN}2`,
+					messageId: 100,
+					requestId: `${TOKEN}2:0`,
+				}).catch(() => {})
+
+				store.dispatch('cancelGetMessageContext', { requestIdPrefix: TOKEN })
+
+				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
+				expect(cancelFunctionMocks[1]).toHaveBeenCalledWith('canceled')
+				// `T2:0` は `T` prefix では止まらない
+				expect(cancelFunctionMocks[2]).not.toHaveBeenCalled()
+				expect(store.state.cancelGetMessageContext).toStrictEqual({ [`${TOKEN}2:0`]: cancelFunctionMocks[2] })
 			})
 		})
 	})

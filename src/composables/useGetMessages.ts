@@ -104,7 +104,6 @@ export function shouldIgnoreThreadPaneToggle(isSidebar: boolean, fromThreadId: n
 const GET_MESSAGES_CONTEXT_KEY: InjectionKey<GetMessagesContext> = Symbol.for('GET_MESSAGES_CONTEXT')
 
 let pollingTimeout: NodeJS.Timeout | undefined
-let expirationInterval: NodeJS.Timeout | undefined
 let pollingErrorTimeout = 1_000
 let chatRelaySupported: boolean | null = null
 let fallbackPollInterval: NodeJS.Timeout | undefined
@@ -227,6 +226,10 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				return
 			}
 			if (oldToken && oldToken !== newToken) {
+				// acorns: 旧トークンの in-flight リクエストを自分で止める(requestId 化で他者が止められなくなった回帰の修正。
+				// 遅れて解決すると preconditions の続きが走り isInitialisingMessages を false に落としてしまう)
+				store.dispatch('cancelGetMessageContext', { requestIdPrefix: oldToken })
+				store.dispatch('cancelFetchMessages', { requestIdPrefix: oldToken })
 				// acorns: 所有者だったときだけポーリングを止める(登録解除で残りが引き継ぐ)
 				if (isPollingOwner(oldToken)) {
 					store.dispatch('cancelPollNewMessages', { requestId: oldToken })
@@ -261,7 +264,9 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 	EventBus.on('should-refresh-chat-messages', tryPollNewMessages)
 
 	/** Every 30 seconds we remove expired messages from the store */
-	expirationInterval = setInterval(() => {
+	// acorns: provider は ChatView ごとに作られるので interval id はモジュール変数に置かない
+	// (別インスタンスの mount で上書きされると、先の unmount で clear できず interval が残る)
+	const expirationInterval = setInterval(() => {
 		store.dispatch('removeExpiredMessages', { token: currentToken.value })
 	}, 30_000)
 
@@ -694,6 +699,11 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				timeout: chatRelaySupported ? 0 : undefined,
 			})
 
+			// acorns: await 中に所有者が替わった(会話切替/ペイン開閉)なら、新所有者の pollingTimeout を触らずに抜ける
+			if (!isPollingOwner(token)) {
+				return
+			}
+
 			chatStore.setLastServerResponseId(token, response.data.ocs.data
 				.reduce((acc: number, message: ChatMessage) => {
 					return message.id > acc ? message.id : acc
@@ -702,6 +712,11 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			pollingErrorTimeout = 1_000
 			debugTimer.end(`${token} | long polling`, 'status 200')
 		} catch (exception) {
+			// acorns: await 中に所有者が替わったなら、新所有者の pollingTimeout を触らずに抜ける
+			if (!isPollingOwner(token)) {
+				return
+			}
+
 			if (isCancel(exception)) {
 				debugTimer.end(`${token} | long polling`, 'cancelled')
 				console.debug('The request has been canceled', exception)

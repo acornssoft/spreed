@@ -1136,15 +1136,25 @@ const actions = {
 	/**
 	 * Cancels a previously running "fetchMessages" action if applicable.
 	 *
-	 * acorns: requestId 指定時はそのリクエストだけ、省略時は全件キャンセル(従来互換)
+	 * acorns: requestId 指定時はそのリクエストだけ、requestIdPrefix 指定時は
+	 * `prefix` または `prefix:*` に一致する全件、どちらも省略時は全件キャンセル(従来互換)
 	 *
 	 * @param {object} context default store context;
 	 * @param {object} [payload] the wrapping object;
-	 * @param {string} [payload.requestId] id of the request to cancel (all requests when omitted)
+	 * @param {string} [payload.requestId] id of the request to cancel
+	 * @param {string} [payload.requestIdPrefix] cancel all requests whose id is the prefix itself or starts with `prefix:` (e.g. a conversation token)
 	 * @return {boolean} true if a request got cancelled, false otherwise
 	 */
-	cancelFetchMessages(context, { requestId } = {}) {
-		const requestIds = requestId ? [requestId] : Object.keys(context.state.cancelFetchMessages)
+	cancelFetchMessages(context, { requestId, requestIdPrefix } = {}) {
+		let requestIds
+		if (requestId) {
+			requestIds = [requestId]
+		} else if (requestIdPrefix) {
+			requestIds = Object.keys(context.state.cancelFetchMessages)
+				.filter((id) => id === requestIdPrefix || id.startsWith(requestIdPrefix + ':'))
+		} else {
+			requestIds = Object.keys(context.state.cancelFetchMessages)
+		}
 		let canceledAny = false
 		for (const id of requestIds) {
 			if (context.state.cancelFetchMessages[id]) {
@@ -1159,15 +1169,25 @@ const actions = {
 	/**
 	 * Cancels a previously running "getMessageContext" action if applicable.
 	 *
-	 * acorns: requestId 指定時はそのリクエストだけ、省略時は全件キャンセル(従来互換)
+	 * acorns: requestId 指定時はそのリクエストだけ、requestIdPrefix 指定時は
+	 * `prefix` または `prefix:*` に一致する全件、どちらも省略時は全件キャンセル(従来互換)
 	 *
 	 * @param {object} context default store context;
 	 * @param {object} [payload] the wrapping object;
-	 * @param {string} [payload.requestId] id of the request to cancel (all requests when omitted)
+	 * @param {string} [payload.requestId] id of the request to cancel
+	 * @param {string} [payload.requestIdPrefix] cancel all requests whose id is the prefix itself or starts with `prefix:` (e.g. a conversation token)
 	 * @return {boolean} true if a request got cancelled, false otherwise
 	 */
-	cancelGetMessageContext(context, { requestId } = {}) {
-		const requestIds = requestId ? [requestId] : Object.keys(context.state.cancelGetMessageContext)
+	cancelGetMessageContext(context, { requestId, requestIdPrefix } = {}) {
+		let requestIds
+		if (requestId) {
+			requestIds = [requestId]
+		} else if (requestIdPrefix) {
+			requestIds = Object.keys(context.state.cancelGetMessageContext)
+				.filter((id) => id === requestIdPrefix || id.startsWith(requestIdPrefix + ':'))
+		} else {
+			requestIds = Object.keys(context.state.cancelGetMessageContext)
+		}
 		let canceledAny = false
 		for (const id of requestIds) {
 			if (context.state.cancelGetMessageContext[id]) {
