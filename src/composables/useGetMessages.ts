@@ -392,6 +392,10 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 		if (!chatStore.hasMessage(token, { messageId, threadId })) {
 			// message not found in the list, need to fetch it first
 			await getMessageContext(token, messageId, threadId)
+			// acorns: await 中に会話が切り替わっていたら抜ける。後続の状態更新は新トークン側に任せる
+			if (currentToken.value !== token) {
+				return
+			}
 		} else {
 			const firstContextMessageId = chatStore.getFirstKnownId(token, { messageId, threadId })
 			const nearestContextMessageId = chatStore.getNearestKnownContextId(token, { messageId, threadId })
@@ -399,6 +403,10 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			if (!nearestContextMessageId) {
 				// current context is empty, need to fetch it first
 				await getMessageContext(token, messageId, threadId)
+				// acorns: await 中に会話が切り替わっていたら抜ける
+				if (currentToken.value !== token) {
+					return
+				}
 			} else if (nearestContextMessageId !== messageId) {
 				// message to be shown does not belong to the current context, switch to nearest instead
 				contextMessageId.value = nearestContextMessageId
@@ -409,13 +417,26 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				// message is the first one in the block, try to get some messages above
 				isInitialisingMessages.value = true
 				await getOldMessages(token, false, { messageId, threadId })
+				// acorns: await 中に会話が切り替わっていたら抜ける(isInitialisingMessages を戻すのは新トークン側の仕事)
+				if (currentToken.value !== token) {
+					return
+				}
 				isInitialisingMessages.value = false
 			}
+		}
+
+		// acorns: ここまでの await で会話が切り替わっていたら、旧トークン宛の focus-message を emit しない
+		if (currentToken.value !== token) {
+			return
 		}
 
 		// need some delay (next tick is too short) to be able to run
 		// after the browser's native "scroll to anchor" from the hash
 		window.setTimeout(() => {
+			// acorns: setTimeout の待ち中に切り替わっている可能性もある
+			if (currentToken.value !== token) {
+				return
+			}
 			EventBus.emit('focus-message', { messageId, highlight, threadId: contextThreadId.value })
 		}, 2)
 	}
