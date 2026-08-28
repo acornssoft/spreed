@@ -245,8 +245,8 @@ export default {
 				this.$router.replace({ query: this.$route.query, hash: '' })
 			} else {
 				// If the hash is already empty, simply scroll to the bottom
-				EventBus.emit('set-context-id-to-bottom')
-				EventBus.emit('scroll-chat-to-bottom', { smooth: false, force: true })
+				EventBus.emit('set-context-id-to-bottom', { threadId: this.threadId })
+				EventBus.emit('scroll-chat-to-bottom', { smooth: false, force: true, threadId: this.threadId })
 			}
 		},
 	},

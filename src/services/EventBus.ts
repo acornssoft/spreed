@@ -29,7 +29,7 @@ export type Events = {
 	'editing-message': void
 	'editing-message-processing': { messageId: number, value: boolean }
 	'focus-chat-input': void
-	'focus-message': { messageId: number | string, smooth?: boolean, highlight?: boolean }
+	'focus-message': { messageId: number | string, smooth?: boolean, highlight?: boolean, threadId?: number }
 	'forbidden-route': { error: string }
 	'joined-conversation': { token: string }
 	'poll-drafts-open': { token: string, selector?: string }
@@ -38,8 +38,8 @@ export type Events = {
 	'refresh-talk-dashboard': void
 	'retry-message': number
 	'route-change': { from: RouteLocation, to: RouteLocation }
-	'set-context-id-to-bottom': void
-	'scroll-chat-to-bottom': { smooth?: boolean, force?: boolean }
+	'set-context-id-to-bottom': { threadId?: number } | void
+	'scroll-chat-to-bottom': { smooth?: boolean, force?: boolean, threadId?: number }
 	'should-refresh-chat-messages': void
 	'should-refresh-conversations': { token: string, properties: Partial<Conversation> } | { all: true } | void
 	'signaling-join-call': [string, number]

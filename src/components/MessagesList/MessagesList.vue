@@ -126,6 +126,7 @@ import { useChatStore } from '../../stores/chat.ts'
 import { useChatExtrasStore } from '../../stores/chatExtras.ts'
 import { useSettingsStore } from '../../stores/settings.ts'
 import { convertToUnix } from '../../utils/formattedTime.ts'
+import { isEventForThread } from '../../utils/threadEvent.ts'
 
 const SCROLL_TOLERANCE = 10
 const LOAD_HISTORY_THRESHOLD = 800
@@ -1041,6 +1042,10 @@ export default {
 		 * @param {boolean} [options.force] force scrolling to the bottom (otherwise check for current position)
 		 */
 		scrollToBottom(options = {}) {
+			// acorns: 別スレッド宛のイベントは無視(§4.6)
+			if (!isEventForThread(options?.threadId, this.threadId)) {
+				return
+			}
 			this.$nextTick(() => {
 				if (!this.$refs.scroller || this.isFocusingMessage) {
 					return
@@ -1097,9 +1102,14 @@ export default {
 		 * @param payload.messageId message id
 		 * @param payload.smooth true to smooth scroll, false to jump directly
 		 * @param payload.highlight true to highlight and set focus to the message
+		 * @param payload.threadId acorns: target threadId (undefined = broadcast)
 		 * @return {boolean} true if element was found, false otherwise
 		 */
-		focusMessage({ messageId, smooth = true, highlight = true }) {
+		focusMessage({ messageId, smooth = true, highlight = true, threadId = undefined }) {
+			// acorns: 別スレッド宛のイベントは無視(§4.6)
+			if (!isEventForThread(threadId, this.threadId)) {
+				return false
+			}
 			const element = document.getElementById(`message_${messageId}`)
 			if (!element) {
 				// Message id doesn't exist

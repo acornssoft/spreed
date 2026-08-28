@@ -30,6 +30,7 @@ import { isAxiosErrorResponse } from '../types/guards.ts'
 import { debugTimer } from '../utils/debugTimer.ts'
 import { isFileShareMessage, tryLocalizeDeletedMessage, tryLocalizeSystemMessage } from '../utils/message.ts'
 import { pollingOwnership } from '../utils/pollingOwnership.ts'
+import { isEventForThread } from '../utils/threadEvent.ts'
 import { useGetThreadId } from './useGetThreadId.ts'
 import { useGetToken } from './useGetToken.ts'
 
@@ -366,14 +367,21 @@ export function useGetMessagesProvider() {
 		// need some delay (next tick is too short) to be able to run
 		// after the browser's native "scroll to anchor" from the hash
 		window.setTimeout(() => {
-			EventBus.emit('focus-message', { messageId, highlight })
+			EventBus.emit('focus-message', { messageId, highlight, threadId: contextThreadId.value })
 		}, 2)
 	}
 
 	/**
 	 * Update contextMessageId to the last message in the conversation
+	 *
+	 * @param payload event payload
+	 * @param payload.threadId acorns: target threadId (undefined = broadcast)
 	 */
-	async function setContextIdToBottom() {
+	async function setContextIdToBottom(payload: { threadId?: number } | void) {
+		// acorns: 別スレッド宛のイベントは無視(§4.6)
+		if (!isEventForThread(payload?.threadId, contextThreadId.value)) {
+			return
+		}
 		contextMessageId.value = conversationLastMessageId.value
 		await checkContextAndFocusMessage(currentToken.value, contextMessageId.value, contextThreadId.value)
 	}
