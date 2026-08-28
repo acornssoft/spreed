@@ -13,6 +13,7 @@ import type {
 	ChatMessage,
 	Conversation,
 } from '../types/index.ts'
+import type { PollingInstance } from '../utils/pollingOwnership.ts'
 
 import { isCancel } from '@nextcloud/axios'
 import { subscribe, unsubscribe } from '@nextcloud/event-bus'
@@ -28,6 +29,7 @@ import { useGuestNameStore } from '../stores/guestName.ts'
 import { isAxiosErrorResponse } from '../types/guards.ts'
 import { debugTimer } from '../utils/debugTimer.ts'
 import { isFileShareMessage, tryLocalizeDeletedMessage, tryLocalizeSystemMessage } from '../utils/message.ts'
+import { pollingOwnership } from '../utils/pollingOwnership.ts'
 import { useGetThreadId } from './useGetThreadId.ts'
 import { useGetToken } from './useGetToken.ts'
 
@@ -90,6 +92,25 @@ export function useGetMessagesProvider() {
 
 	const currentToken = useGetToken()
 	const contextThreadId = useGetThreadId()
+	// acorns: このインスタンスの登録簿エントリ。所有者になったら pollNewMessages を始める
+	const pollingInstance: PollingInstance = {
+		id: Symbol('useGetMessages'),
+		getThreadId: () => contextThreadId.value,
+		start: () => {
+			if (currentToken.value && !isInitialisingMessages.value) {
+				pollNewMessages(currentToken.value)
+			}
+			// 初期化中なら handleStartGettingMessagesPreconditions の末尾が所有者判定付きで開始する
+		},
+	}
+	/**
+	 * 所有者か(トークン単位の副作用を行ってよいか)
+	 *
+	 * @param token conversation token(省略時は現在のトークン)
+	 */
+	function isPollingOwner(token = currentToken.value) {
+		return pollingOwnership.isOwner(token, pollingInstance)
+	}
 	/** Conversation object by currentToken ref. If required in an async context, store getter should be used instead */
 	const currentConversation = computed<Conversation | undefined>(() => store.getters.conversation(currentToken.value))
 	const isInLobby = computed<boolean>(() => store.getters.isInLobby)
@@ -167,14 +188,19 @@ export function useGetMessagesProvider() {
 				return
 			}
 			if (oldToken && oldToken !== newToken) {
-				store.dispatch('cancelPollNewMessages', { requestId: oldToken })
-				chatRelaySupported = null
-				clearInterval(fallbackPollInterval)
+				// acorns: 所有者だったときだけポーリングを止める(登録解除で残りが引き継ぐ)
+				if (isPollingOwner(oldToken)) {
+					store.dispatch('cancelPollNewMessages', { requestId: oldToken })
+					chatRelaySupported = null
+					clearInterval(fallbackPollInterval)
+				}
+				pollingOwnership.unregister(oldToken, pollingInstance)
 			}
 
 			if (newToken && canGetMessages) {
+				pollingOwnership.register(newToken, pollingInstance)
 				handleStartGettingMessagesPreconditions(newToken)
-			} else {
+			} else if (newToken && isPollingOwner(newToken)) {
 				store.dispatch('cancelPollNewMessages', { requestId: newToken })
 			}
 
@@ -206,9 +232,15 @@ export function useGetMessagesProvider() {
 		EventBus.off('signaling-supported-features', checkChatRelaySupport)
 		EventBus.off('should-refresh-chat-messages', tryPollNewMessages)
 
-		store.dispatch('cancelPollNewMessages', { requestId: currentToken.value })
-		clearInterval(pollingTimeout)
+		const token = currentToken.value
+		// acorns: 非所有者(右ペイン)の unmount で所有者(メイン)のポーリングを止めない
+		if (isPollingOwner(token)) {
+			store.dispatch('cancelPollNewMessages', { requestId: token })
+			clearInterval(pollingTimeout)
+		}
 		clearInterval(expirationInterval)
+		// 登録解除。自分が所有者なら残りのインスタンスが start() で引き継ぐ
+		pollingOwnership.unregister(token, pollingInstance)
 	})
 
 	/**
@@ -224,7 +256,7 @@ export function useGetMessagesProvider() {
 	 * Stop polling due to offline
 	 */
 	function handleNetworkOffline() {
-		if (currentToken.value) {
+		if (currentToken.value && isPollingOwner()) {
 			console.debug('Canceling message request as we are offline')
 			store.dispatch('cancelPollNewMessages', { requestId: currentToken.value })
 		}
@@ -234,7 +266,7 @@ export function useGetMessagesProvider() {
 	 * Resume polling, when back online
 	 */
 	function handleNetworkOnline() {
-		if (currentToken.value) {
+		if (currentToken.value && isPollingOwner()) {
 			console.debug('Restarting polling of new chat messages')
 			pollNewMessages(currentToken.value)
 		}
@@ -386,6 +418,11 @@ export function useGetMessagesProvider() {
 		}
 
 		isInitialisingMessages.value = false
+
+		// acorns: ポーリングの開始は所有者だけ(右ペインはコンテキスト取得のみ)
+		if (!isPollingOwner(token)) {
+			return
+		}
 
 		if (chatRelaySupported !== null) {
 			// Case: chat relay is confirmed to be supported / not supported from signaling hello message,
@@ -551,6 +588,10 @@ export function useGetMessagesProvider() {
 			console.debug(`token has changed to ${currentToken.value}, breaking the loop for ${token}`)
 			return
 		}
+		// acorns: 所有者でなければ回さない(引き継ぎ前に残っていたタイマー等からの呼び出し)
+		if (!isPollingOwner(token)) {
+			return
+		}
 
 		// If chat was previously opened, and messages were received via chat-relay,
 		// start polling from last received by server message id
@@ -635,6 +676,10 @@ export function useGetMessagesProvider() {
 			// the event is only relevant when chat relay is supported
 			return
 		}
+		// acorns: ポーリングは所有者だけ
+		if (!isPollingOwner()) {
+			return
+		}
 		pollNewMessages(currentToken.value)
 	}
 
@@ -648,6 +693,11 @@ export function useGetMessagesProvider() {
 			chatRelaySupported = true
 		} else {
 			chatRelaySupported = false
+		}
+
+		// acorns: chatRelaySupported(モジュール変数)の代入は全員が行い、ポーリング開始は所有者だけ
+		if (!isPollingOwner()) {
+			return
 		}
 
 		if (!pollingTimeout) {
@@ -713,6 +763,10 @@ export function useGetMessagesProvider() {
 	function addMessageFromChatRelay(payload: { token: string, message: ChatMessage, lastCommonReadMessage?: number }) {
 		if (!chatRelaySupported) {
 			// chat relay is not supported, ignore the message
+			return
+		}
+		// acorns: relay メッセージの取り込みは所有者だけ(非所有者はストアを二重更新しない)
+		if (!isPollingOwner()) {
 			return
 		}
 
