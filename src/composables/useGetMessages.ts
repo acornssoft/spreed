@@ -198,6 +198,9 @@ export function useGetMessagesProvider() {
 			}
 
 			if (newToken && canGetMessages) {
+				// acorns: register が所有者選出で start() を即呼ぶので、先に初期化中フラグを立てて
+				// start を no-op にする(実際のポーリング開始は preconditions 末尾の所有者判定付きの箇所)
+				isInitialisingMessages.value = true
 				pollingOwnership.register(newToken, pollingInstance)
 				handleStartGettingMessagesPreconditions(newToken)
 			} else if (newToken && isPollingOwner(newToken)) {
