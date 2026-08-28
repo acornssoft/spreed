@@ -112,8 +112,8 @@ function state() {
 
 		/**
 		 * Stores the cancel functions returned by `cancelableFetchMessages`
-		 * per request id, which allows to cancel the previous request for
-		 * old messages when quickly switching to a new conversation.
+		 * per request id, which allows to cancel the previous request with
+		 * the same request id when starting a new one.
 		 *
 		 * acorns: requestId 単位の map(token:threadId)。メインとスレッドペインが
 		 * 同時に取得しても互いをキャンセルしないようにするため
@@ -121,8 +121,8 @@ function state() {
 		cancelFetchMessages: {},
 		/**
 		 * Stores the cancel functions returned by `cancelableGetMessageContext`
-		 * per request id, which allows to cancel the previous request for the
-		 * context messages when quickly switching to another conversation.
+		 * per request id, which allows to cancel the previous request with
+		 * the same request id when starting a new one.
 		 *
 		 * acorns: requestId 単位の map(token:threadId)。メインとスレッドペインが
 		 * 同時に取得しても互いをキャンセルしないようにするため

@@ -85,6 +85,22 @@ export function shouldHandleRouteChange(ownThreadId: number, routeThreadId: numb
 	return ownThreadId === routeThreadId
 }
 
+/**
+ * acorns: この route 変更がスレッドペインの開閉(URL の threadId 変化)によるもので
+ * このインスタンスが無視すべきか。メイン(サイドバーでない)インスタンスは threadId の
+ * 変化を無視する — ペインの開閉はメインの表示位置に関係なく、従来はここで
+ * contextMessageId が lastReadMessage/末尾にリセットされスクロールしていた。
+ * hash だけの変化(ChatView.scrollToBottom / 通知リンク)は threadId が変わらないので処理する。
+ * サイドバーの ChatView(通話中タブ・スレッドペイン)は自分の threadId が実際に変わるので処理する。
+ *
+ * @param isSidebar whether this instance is a sidebar ChatView
+ * @param fromThreadId threadId in the previous URL (0 = none)
+ * @param toThreadId threadId in the new URL (0 = none)
+ */
+export function shouldIgnoreThreadPaneToggle(isSidebar: boolean, fromThreadId: number, toThreadId: number): boolean {
+	return !isSidebar && fromThreadId !== toThreadId
+}
+
 const GET_MESSAGES_CONTEXT_KEY: InjectionKey<GetMessagesContext> = Symbol.for('GET_MESSAGES_CONTEXT')
 
 let pollingTimeout: NodeJS.Timeout | undefined
@@ -105,6 +121,8 @@ export function useGetMessagesProvider() {
 
 	const currentToken = useGetToken()
 	const contextThreadId = useGetThreadId()
+	// acorns: スレッドペイン開閉の route 変更をメインが無視する判定に使う(ChatView が provide 済み)
+	const isSidebar = inject<boolean>('chatView:isSidebar', false)
 	// acorns: このインスタンスの登録簿エントリ。所有者になったら pollNewMessages を始める
 	const pollingInstance: PollingInstance = {
 		id: Symbol('useGetMessages'),
@@ -301,7 +319,10 @@ export function useGetMessagesProvider() {
 	 * @param payload.to
 	 */
 	async function onRouteChange({ from, to }: { from: RouteLocation, to: RouteLocation }) {
-		// acorns: 変更の反映(unmount)を待ってから判定する。閉じる途中のペインは処理しない
+		// acorns: 変更の反映(unmount)を待ってから判定する。閉じる途中のペインは処理しない。
+		// `App.vue` の `router.afterEach` からの emit(route 反映後)を前提にしている。
+		// `createMemoryRouter` 経路(`router.ts` の `beforeEach` emit)では unmount 前に
+		// 解決するが、そこにはスレッドペインが無い
 		await nextTick()
 		if (isUnmounted) {
 			return
@@ -318,9 +339,16 @@ export function useGetMessagesProvider() {
 			return
 		}
 
+		const fromThreadId = from.query.threadId ? Number(from.query.threadId) : 0
+		const toThreadId = to.query.threadId ? Number(to.query.threadId) : 0
+		// acorns: ペインの開閉(threadId の変化)はメイン領域の表示位置に関係ない。
+		// hash だけの変化(ChatView.scrollToBottom / 通知リンク)は従来どおり処理する
+		if (shouldIgnoreThreadPaneToggle(isSidebar, fromThreadId, toThreadId)) {
+			return
+		}
+
 		// acorns: URL の threadId と一致するインスタンスだけが処理する(§4.5)
-		const routeThreadId = to.query.threadId ? Number(to.query.threadId) : 0
-		if (!shouldHandleRouteChange(contextThreadId.value, routeThreadId)) {
+		if (!shouldHandleRouteChange(contextThreadId.value, toThreadId)) {
 			return
 		}
 

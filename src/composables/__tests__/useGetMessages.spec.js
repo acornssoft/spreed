@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { pinThreadVisualLastReadMessageId, shouldHandleRouteChange } from '../useGetMessages.ts'
+import { pinThreadVisualLastReadMessageId, shouldHandleRouteChange, shouldIgnoreThreadPaneToggle } from '../useGetMessages.ts'
 
 describe('pinThreadVisualLastReadMessageId', () => {
 	/**
@@ -60,7 +60,27 @@ describe('shouldHandleRouteChange', () => {
 		expect(shouldHandleRouteChange(138, 285)).toBe(false)
 	})
 
-	it('URL に threadId が無いときペインは担当しない(閉じる途中)', () => {
-		expect(shouldHandleRouteChange(138, 0)).toBe(false)
+	// acorns: 閉じる途中のペインの contextThreadId は URL 共有 ref なので 0 に既になっている。
+	// つまり担当判定は通ってしまう = nextTick/unmount ガードが必要、という前提を固定する
+	it('閉じる途中のペインは own も 0 になるので担当判定は通る(= nextTick/unmount ガードが必要)', () => {
+		expect(shouldHandleRouteChange(0, 0)).toBe(true)
+	})
+})
+
+describe('shouldIgnoreThreadPaneToggle (acorns)', () => {
+	it('メイン(サイドバーでない)はペインのオープン(0→138)を無視する', () => {
+		expect(shouldIgnoreThreadPaneToggle(false, 0, 138)).toBe(true)
+	})
+
+	it('メイン(サイドバーでない)はペインのクローズ(138→0)を無視する', () => {
+		expect(shouldIgnoreThreadPaneToggle(false, 138, 0)).toBe(true)
+	})
+
+	it('メインは hash だけの変化(0→0)を無視しない', () => {
+		expect(shouldIgnoreThreadPaneToggle(false, 0, 0)).toBe(false)
+	})
+
+	it('サイドバー(通話中タブ/スレッドペイン)は threadId の変化(138→0)を無視しない', () => {
+		expect(shouldIgnoreThreadPaneToggle(true, 138, 0)).toBe(false)
 	})
 })
