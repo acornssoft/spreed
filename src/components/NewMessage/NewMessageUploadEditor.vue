@@ -106,6 +106,7 @@ import { useGetToken } from '../../composables/useGetToken.ts'
 import { MESSAGE } from '../../constants.ts'
 import { getTalkConfig, hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { useUploadStore } from '../../stores/upload.ts'
+import { isUploadForThread } from '../../utils/threadEvent.ts'
 
 export default {
 	name: 'NewMessageUploadEditor',
@@ -158,7 +159,18 @@ export default {
 		},
 
 		showModal() {
-			return !!this.currentUploadId
+			if (!this.currentUploadId) {
+				return false
+			}
+			// acorns: NewMessageUploadEditor は ChatView ごと(チャンネル / スレッドペイン)に 1 つある。
+			// 自分の threadId 向けのアップロードだけ表示する(両方が開くとモーダルが重なって操作できない)
+			const uploads = this.uploadStore.getInitialisedUploads(this.currentUploadId)
+			if (uploads.length === 0) {
+				// 初期化直後(entry がまだ無い瞬間)は表示しない
+				return false
+			}
+			const uploadThreadId = uploads[0][1].temporaryMessage?.threadId
+			return isUploadForThread(uploadThreadId, this.threadId)
 		},
 
 		addMoreAriaLabel() {
