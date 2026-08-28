@@ -33,7 +33,7 @@ export type Events = {
 	'forbidden-route': { error: string }
 	'joined-conversation': { token: string }
 	'poll-drafts-open': { token: string, selector?: string }
-	'poll-editor-open': { token: string, id: number | null, fromDrafts: boolean, action?: string, selector?: string }
+	'poll-editor-open': { token: string, id: number | null, fromDrafts: boolean, action?: string, selector?: string, threadId?: number }
 	'refresh-peer-list': void
 	'refresh-talk-dashboard': void
 	'retry-message': number

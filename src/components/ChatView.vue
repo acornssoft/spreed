@@ -81,6 +81,7 @@ import IconFileUpload from '../../img/material-icons/file-upload.svg?raw'
 import { useGetMessagesProvider } from '../composables/useGetMessages.ts'
 import { useGetThreadId } from '../composables/useGetThreadId.ts'
 import { useGetToken } from '../composables/useGetToken.ts'
+import { useIsInCall } from '../composables/useIsInCall.js'
 import { CONVERSATION, PARTICIPANT } from '../constants.ts'
 import { getTalkConfig, hasTalkFeature } from '../services/CapabilitiesManager.ts'
 import { EventBus } from '../services/EventBus.ts'
@@ -131,6 +132,7 @@ export default {
 			IconFileUpload,
 			token: useGetToken(),
 			threadId: useGetThreadId(),
+			isInCall: useIsInCall(),
 			chatExtrasStore: useChatExtrasStore(),
 			actorStore: useActorStore(),
 			settingsStore: useSettingsStore(),
@@ -202,7 +204,9 @@ export default {
 		token: {
 			immediate: true,
 			handler(value) {
-				if (value && hasTalkFeature(value, 'threads')) {
+				// acorns: 右ペインのインスタンスでは呼ばない(メインが同じ token で取得済み)。
+				// ただし通話中はメインの ChatView が無いのでサイドバー側が呼ぶ(設計書 §6.3)
+				if (value && (!this.isSidebar || this.isInCall) && hasTalkFeature(value, 'threads')) {
 					this.chatExtrasStore.fetchRecentThreadsList(value)
 				}
 			},

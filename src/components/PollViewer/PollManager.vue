@@ -23,6 +23,8 @@ const showPollDraftHandler = ref(false)
 const container = ref<string | undefined>(undefined)
 
 const token = ref('')
+// acorns: ペインから開いた投票の投稿先スレッド(下書きはチャンネル機能なので undefined のまま)(設計書 §4.7)
+const threadId = ref<number | undefined>(undefined)
 const canCreatePollDrafts = computed(() => {
 	const { participantType, type } = store.getters.conversation(token.value) ?? {}
 	// TODO: getters.isModerator should accept token
@@ -51,6 +53,8 @@ onBeforeUnmount(() => {
 function openPollDraftHandler(payload: Events['poll-drafts-open']) {
 	token.value = payload.token
 	container.value = payload.selector
+	// acorns: 下書きはチャンネルの機能。スレッドには紐づけない(設計書 §4.7)
+	threadId.value = undefined
 	showPollDraftHandler.value = true
 }
 
@@ -63,10 +67,13 @@ function openPollDraftHandler(payload: Events['poll-drafts-open']) {
  * @param payload.fromDrafts whether editor was opened from PollDraftHandler dialog
  * @param payload.action required action ('fill' from draft or 'edit' draft)
  * @param [payload.selector] selector to mount dialog to (body by default)
+ * @param [payload.threadId] thread ID to post the poll into (undefined = channel)
  */
 function openPollEditor(payload: Events['poll-editor-open']) {
 	token.value = payload.token
 	container.value = payload.selector
+	// acorns: ペインから開いた投票の投稿先スレッド(設計書 §4.7)
+	threadId.value = payload.threadId
 	showPollEditor.value = true
 	nextTick(() => {
 		pollEditorRef.value?.fillPollEditorFromDraft(payload.id, payload.fromDrafts, payload.action)
@@ -85,6 +92,7 @@ function openPollEditor(payload: Events['poll-editor-open']) {
 			:token="token"
 			:canCreatePollDrafts="canCreatePollDrafts"
 			:container="container"
+			:threadId="threadId"
 			@close="showPollEditor = false" />
 		<!-- Poll drafts dialog -->
 		<PollDraftHandler

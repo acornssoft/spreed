@@ -90,6 +90,7 @@ import IconPoll from 'vue-material-design-icons/Poll.vue'
 import IconFileUpload from '../../../img/material-icons/file-upload.svg?raw'
 import IconSmartPicker from '../../../img/material-icons/smart-picker.svg?raw'
 import { useFileTemplates } from '../../composables/useFileTemplates.ts'
+import { useGetThreadId } from '../../composables/useGetThreadId.ts'
 import { EventBus } from '../../services/EventBus.ts'
 
 export default {
@@ -147,6 +148,7 @@ export default {
 			fileTemplateOptions,
 			IconFileUpload,
 			IconSmartPicker,
+			threadId: useGetThreadId(),
 		}
 	},
 
@@ -166,7 +168,8 @@ export default {
 		},
 
 		showPollEditor() {
-			EventBus.emit('poll-editor-open', { token: this.token, id: null, fromDrafts: false })
+			// acorns: ペインから開いた投票はそのスレッドに投稿する(設計書 §4.7)
+			EventBus.emit('poll-editor-open', { token: this.token, id: null, fromDrafts: false, threadId: this.threadId || undefined })
 		},
 	},
 }
