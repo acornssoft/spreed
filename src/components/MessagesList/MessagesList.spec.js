@@ -67,8 +67,9 @@ describe('MessagesList.vue', () => {
 
 		chatStore = useChatStore()
 
-		// scrollTo isn't implemented in JSDOM
+		// scrollTo / scrollIntoView isn't implemented in JSDOM
 		Element.prototype.scrollTo = () => {}
+		Element.prototype.scrollIntoView = () => {}
 	})
 
 	afterEach(() => {
@@ -742,6 +743,38 @@ describe('MessagesList.vue', () => {
 				threadId: 138,
 				id: 105,
 			})
+		})
+	})
+
+	describe('getMessageElement', () => {
+		test('finds only elements inside own scroller even when the same id exists outside', () => {
+			store.commit('addConversation', {
+				token: TOKEN,
+				hasCall: false,
+			})
+			messagesGroup1.forEach((message) => store.commit('addMessage', { token: TOKEN, message }))
+			chatStore.processChatBlocks(TOKEN, messagesGroup1)
+			isInitialisingMessages.value = false
+			const wrapper = mountMessagesList()
+
+			// acorns: メイン一覧に同じ id の要素がある状況(ペインからのグローバル検索で誤爆しないこと)
+			const outsideElement = document.createElement('div')
+			outsideElement.id = 'message_100'
+			document.body.appendChild(outsideElement)
+
+			try {
+				const innerElement = wrapper.vm.$refs.scroller.querySelector('#message_100')
+				expect(innerElement).not.toBeNull()
+				expect(wrapper.vm.getMessageElement(100)).toBe(innerElement)
+				// scroller 内に存在しない id は、外側にあっても拾わない
+				const outsideOnly = document.createElement('div')
+				outsideOnly.id = 'message_999'
+				document.body.appendChild(outsideOnly)
+				expect(wrapper.vm.getMessageElement(999)).toBeNull()
+				document.body.removeChild(outsideOnly)
+			} finally {
+				document.body.removeChild(outsideElement)
+			}
 		})
 	})
 })

@@ -820,6 +820,11 @@ export default {
 			clearTimeout(this.endScrollTimeout)
 		},
 
+		// acorns: MessagesList は 2 つ mount される(チャンネル / スレッド)。同じ id の要素が両方にあるので自分の scroller 配下だけを探す
+		getMessageElement(id) {
+			return this.$refs.scroller?.querySelector(`[id="message_${id}"]`) ?? null
+		},
+
 		/**
 		 * Finds the last message that is fully visible in the scroller viewport
 		 *
@@ -840,7 +845,7 @@ export default {
 			// we use the next message from the list start the scroller-visibility check
 			if (!el || el.offsetParent === null) {
 				const messageId = this.$store.getters.getFirstDisplayableMessageIdAfterReadMarker(this.token, this.conversation.lastReadMessage)
-				el = document.getElementById('message_' + messageId)
+				el = this.getMessageElement(messageId)
 			}
 			let previousEl = el
 
@@ -854,7 +859,7 @@ export default {
 				}
 
 				previousEl = el
-				el = document.getElementById('message_' + el.getAttribute('data-next-message-id'))
+				el = this.getMessageElement(el.getAttribute('data-next-message-id'))
 			}
 
 			return previousEl
@@ -901,7 +906,7 @@ export default {
 		 * @return {object} DOM element of the last read message
 		 */
 		getVisualLastReadMessageElement() {
-			let el = document.getElementById('message_' + this.visualLastReadMessageId)
+			let el = this.getMessageElement(this.visualLastReadMessageId)
 			if (el) {
 				el = el.closest('.message')
 				if (el === null || el.offsetParent === null) {
@@ -909,7 +914,7 @@ export default {
 					// e.g: it is the last message in collapsed group
 					// unread marker is set to the combined system message.
 					// Look for the unread marker itself
-					el = document.querySelector('.message-unread-marker')
+					el = this.$refs.scroller?.querySelector('.message-unread-marker')
 					if (el) {
 						el = el.closest('.message')
 					} else {
@@ -1110,7 +1115,7 @@ export default {
 			if (!isEventForThread(threadId, this.threadId)) {
 				return false
 			}
-			const element = document.getElementById(`message_${messageId}`)
+			const element = this.getMessageElement(messageId)
 			if (!element) {
 				// Message id doesn't exist
 				// TODO: in some cases might need to trigger a scroll up if this is an older message
