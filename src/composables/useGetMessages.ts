@@ -253,6 +253,7 @@ export function useGetMessagesProvider() {
 		if (isPollingOwner(token)) {
 			store.dispatch('cancelPollNewMessages', { requestId: token })
 			clearInterval(pollingTimeout)
+			clearInterval(fallbackPollInterval)
 		}
 		clearInterval(expirationInterval)
 		// 登録解除。自分が所有者なら残りのインスタンスが start() で引き継ぐ
@@ -759,6 +760,10 @@ export function useGetMessagesProvider() {
 	 * Get messages history (fallback for chat-relay).
 	 */
 	async function fallbackPollNewMessages() {
+		// acorns: 旧所有者のゾンビ interval からの発火を防ぐ(fetch は所有者だけ)
+		if (!isPollingOwner()) {
+			return
+		}
 		const token = currentToken.value
 		const lastKnownMessageId = chatStore.getLastServerResponseId(token)
 		if (!lastKnownMessageId || !token) {
