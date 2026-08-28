@@ -72,8 +72,11 @@ function openPollDraftHandler(payload: Events['poll-drafts-open']) {
 function openPollEditor(payload: Events['poll-editor-open']) {
 	token.value = payload.token
 	container.value = payload.selector
-	// acorns: ペインから開いた投票の投稿先スレッド(設計書 §4.7)
-	threadId.value = payload.threadId
+	// acorns: ペインから開いた投票の投稿先スレッド(設計書 §4.7)。
+	// PollDraftHandler からの再 emit には threadId が無いので、その場合は直前の値を維持する
+	if (payload.threadId !== undefined) {
+		threadId.value = payload.threadId
+	}
 	showPollEditor.value = true
 	nextTick(() => {
 		pollEditorRef.value?.fillPollEditorFromDraft(payload.id, payload.fromDrafts, payload.action)
