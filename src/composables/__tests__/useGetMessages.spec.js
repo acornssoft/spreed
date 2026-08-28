@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { pinThreadVisualLastReadMessageId } from '../useGetMessages.ts'
+import { pinThreadVisualLastReadMessageId, shouldHandleRouteChange } from '../useGetMessages.ts'
 
 describe('pinThreadVisualLastReadMessageId', () => {
 	/**
@@ -40,5 +40,27 @@ describe('pinThreadVisualLastReadMessageId', () => {
 
 		expect(pinThreadVisualLastReadMessageId(store, 'TOKEN', 138, 0)).toBe(0)
 		expect(store.dispatch).not.toHaveBeenCalled()
+	})
+})
+
+describe('shouldHandleRouteChange', () => {
+	it('URL に threadId が無ければメイン(0)が担当', () => {
+		expect(shouldHandleRouteChange(0, 0)).toBe(true)
+	})
+
+	it('URL に threadId があればメイン(0)は担当しない', () => {
+		expect(shouldHandleRouteChange(0, 138)).toBe(false)
+	})
+
+	it('URL の threadId と一致するペインが担当', () => {
+		expect(shouldHandleRouteChange(138, 138)).toBe(true)
+	})
+
+	it('URL の threadId と違うペイン(切替前の値)は担当しない', () => {
+		expect(shouldHandleRouteChange(138, 285)).toBe(false)
+	})
+
+	it('URL に threadId が無いときペインは担当しない(閉じる途中)', () => {
+		expect(shouldHandleRouteChange(138, 0)).toBe(false)
 	})
 })

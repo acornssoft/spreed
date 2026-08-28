@@ -72,6 +72,18 @@ export function pinThreadVisualLastReadMessageId(store: VisualReadMarkerStore, t
 	return 0
 }
 
+/**
+ * acorns: 同一会話内の route 変更(ハッシュ・threadId)をこのインスタンスが処理すべきか。
+ * URL に threadId があるときはペイン(threadId 一致)が担当、無いときはメイン(0)が担当。
+ * メインが通知リンクの #message_M(スレッド返信)をチャンネルで探しにいくのを防ぐ
+ *
+ * @param ownThreadId this instance's threadId (0 = channel)
+ * @param routeThreadId threadId from the URL query (0 = none)
+ */
+export function shouldHandleRouteChange(ownThreadId: number, routeThreadId: number): boolean {
+	return ownThreadId === routeThreadId
+}
+
 const GET_MESSAGES_CONTEXT_KEY: InjectionKey<GetMessagesContext> = Symbol.for('GET_MESSAGES_CONTEXT')
 
 let pollingTimeout: NodeJS.Timeout | undefined
@@ -294,6 +306,12 @@ export function useGetMessagesProvider() {
 			return
 		}
 
+		// acorns: URL の threadId と一致するインスタンスだけが処理する(§4.5)
+		const routeThreadId = to.query.threadId ? Number(to.query.threadId) : 0
+		if (!shouldHandleRouteChange(contextThreadId.value, routeThreadId)) {
+			return
+		}
+
 		const focusMessageId = getMessageIdFromHash(to.hash)
 		if (focusMessageId !== null) {
 			// the hash is non-empty, need to focus/highlight another message
@@ -370,10 +388,17 @@ export function useGetMessagesProvider() {
 		isInitialisingMessages.value = true
 
 		// Start from message hash or unread marker
-		const focusMessageId = getMessageIdFromHash(route.hash)
+		// acorns: メイン(threadId=0)が URL に threadId を持って mount された直後(通知リンク)はハッシュを無視する
+		const routeThreadId = route.query.threadId ? Number(route.query.threadId) : 0
+		const focusMessageId = shouldHandleRouteChange(contextThreadId.value, routeThreadId)
+			? getMessageIdFromHash(route.hash)
+			: null
 		contextMessageId.value = focusMessageId !== null ? focusMessageId : currentConversation.value!.lastReadMessage
 
-		store.dispatch('setVisualLastReadMessageId', { token, id: currentConversation.value!.lastReadMessage })
+		if (!contextThreadId.value) {
+			// acorns: チャンネルキーの区切り線はメイン領域だけが設定する(ペインがリセットしない)
+			store.dispatch('setVisualLastReadMessageId', { token, id: currentConversation.value!.lastReadMessage })
+		}
 
 		if (contextThreadId.value) {
 			// acorns: スレッド表示の初回オープンではスレッドの既読位置を区切り線に使う
