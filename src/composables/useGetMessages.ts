@@ -111,8 +111,15 @@ let fallbackPollInterval: NodeJS.Timeout | undefined
 
 /**
  * Composable to provide control logic for fetching messages list
+ *
+ * @param [options] options object
+ * @param [options.isSidebar] whether this instance is a sidebar ChatView.
+ * acorns: `inject('chatView:isSidebar')` は使わない — provide した値は
+ * 同一 setup 内(= 自分自身)からは inject できず常に既定値になるため
  */
-export function useGetMessagesProvider() {
+export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
+	// acorns: スレッドペイン開閉の route 変更をメインが無視する判定に使う
+	const isSidebar = options?.isSidebar ?? false
 	const store = useStore()
 	const route = useRoute()
 	const chatStore = useChatStore()
@@ -121,8 +128,6 @@ export function useGetMessagesProvider() {
 
 	const currentToken = useGetToken()
 	const contextThreadId = useGetThreadId()
-	// acorns: スレッドペイン開閉の route 変更をメインが無視する判定に使う(ChatView が provide 済み)
-	const isSidebar = inject<boolean>('chatView:isSidebar', false)
 	// acorns: このインスタンスの登録簿エントリ。所有者になったら pollNewMessages を始める
 	const pollingInstance: PollingInstance = {
 		id: Symbol('useGetMessages'),

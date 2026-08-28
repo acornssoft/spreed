@@ -126,7 +126,7 @@ export default {
 		// acorns: メッセージ取得の制御は ChatView ごとに 1 つ(メイン=チャンネル / 右ペイン=スレッド)。
 		// 以前は App.vue 等のルートで 1 つだったが、2 つの MessagesList が context を共有すると
 		// チャンネル側のスクロール読み込みがスレッドの threadId で走る(設計書 §4.4)
-		useGetMessagesProvider()
+		useGetMessagesProvider({ isSidebar: props.isSidebar })
 		return {
 			IconFileUpload,
 			token: useGetToken(),
