@@ -53,6 +53,15 @@
 			:name="t('spreed', 'Threads')">
 			<ThreadsTab @close="handleUpdateState('default')" />
 		</NcAppSidebarTab>
+		<NcAppSidebarTab
+			v-else-if="contentState === 'thread'"
+			id="thread"
+			key="thread"
+			:order="0"
+			:name="t('spreed', 'Thread')">
+			<!-- acorns: スレッドの右ペイン。ThreadHeader standalone は ChatView 内(isSidebar && threadId)で出る -->
+			<ChatView :isVisible="opened && contentState === 'thread'" isSidebar />
+		</NcAppSidebarTab>
 		<template v-else>
 			<NcAppSidebarTab
 				v-if="isInCall"
@@ -139,7 +148,7 @@ import { showMessage } from '@nextcloud/dialogs'
 import { emit, subscribe, unsubscribe } from '@nextcloud/event-bus'
 import { t } from '@nextcloud/l10n'
 import { useEventListener } from '@vueuse/core'
-import { ref } from 'vue'
+import { provide, ref } from 'vue'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -163,11 +172,13 @@ import SipSettings from './SipSettings.vue'
 import ThreadsTab from './Threads/ThreadsTab.vue'
 import IconPermMediaOutline from '../../../img/material-icons/perm-media-outline.svg?raw'
 import { useGetParticipants } from '../../composables/useGetParticipants.ts'
+import { THREAD_ID_INJECTION_KEY, useRouteThreadId } from '../../composables/useGetThreadId.ts'
 import { useGetToken } from '../../composables/useGetToken.ts'
 import { CONVERSATION, PARTICIPANT, WEBINAR } from '../../constants.ts'
 import { getTalkConfig, hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { useActorStore } from '../../stores/actor.ts'
 import { useSidebarStore } from '../../stores/sidebar.ts'
+import { resolveThreadPaneState } from './threadPaneState.ts'
 
 const canStartConversations = getTalkConfig('local', 'conversations', 'can-create')
 const supportConversationCreationAll = hasTalkFeature('local', 'conversation-creation-all')
@@ -211,6 +222,10 @@ export default {
 	setup() {
 		const activeTab = ref('participants')
 		useGetParticipants(activeTab)
+
+		// acorns: サイドバー配下は URL の threadId を描く(設計書 §4.2)
+		const routeThreadId = useRouteThreadId()
+		provide(THREAD_ID_INJECTION_KEY, routeThreadId)
 
 		const sidebar = ref(null)
 		const sidebarContent = ref(null)
@@ -263,6 +278,7 @@ export default {
 			activeTab,
 			CONTENT_MODES,
 			contentModeIndex,
+			routeThreadId,
 			sidebar,
 			sidebarContent,
 			sidebarStore: useSidebarStore(),
@@ -276,6 +292,8 @@ export default {
 			contactsLoading: false,
 			unreadNotificationHandle: null,
 			contentState: 'default',
+			// acorns: 'thread' に入る前の contentState(D7 の復帰先)。previousActiveTab(タブ id の履歴)とは別物
+			previousContentState: 'default',
 			previousActiveTab: this.isInCall ? 'chat' : 'participants',
 		}
 	},
@@ -476,6 +494,33 @@ export default {
 			if (!this.isOneToOne) {
 				this.activeTab = 'participants'
 			}
+
+			// acorns: 通話中に開いていたスレッドがあれば右ペインの状態に入る(設計書 §4.3「通話終了」)
+			if (this.routeThreadId) {
+				const next = resolveThreadPaneState(this.routeThreadId, this.contentState, this.previousContentState, this.opened)
+				this.previousContentState = next.previousContentState
+				this.handleUpdateState(next.contentState)
+			}
+		},
+
+		// acorns: URL の threadId の変化で右ペインを 'thread' 状態に遷移させる(設計書 §4.3)
+		routeThreadId: {
+			immediate: true,
+			handler(threadId) {
+				if (this.isInCall) {
+					// 通話中はチャットタブの ChatView が threadId を読むので状態は変えない(D4)
+					return
+				}
+				const next = resolveThreadPaneState(threadId, this.contentState, this.previousContentState, this.opened)
+				this.previousContentState = next.previousContentState
+				if (next.contentState !== this.contentState) {
+					this.handleUpdateState(next.contentState)
+				}
+				if (next.openSidebar) {
+					// ユーザーの「サイドバー閉」設定は上書きしない
+					this.sidebarStore.showSidebar({ cache: false })
+				}
+			},
 		},
 
 		token: {
@@ -534,6 +579,10 @@ export default {
 				this.sidebarStore.showSidebar()
 			} else {
 				this.sidebarStore.hideSidebar()
+				// acorns: × で閉じたらスレッドも閉じる(URL と画面のずれを残さない。D6)
+				if (this.routeThreadId) {
+					this.routeThreadId = 0
+				}
 			}
 		},
 
@@ -549,14 +598,28 @@ export default {
 		},
 
 		handleUpdateState(value) {
+			// acorns: 'thread' はどの contentState からでも入りうる。previousActiveTab は
+			// 'default' 状態のタブから出るときだけ保存する。さもないと 'thread' /
+			// 'search-messages' / 'threads' といった default 状態に存在しないタブ id が
+			// 'default' 復帰時に restore されてしまう
+			const enteredFromDefault = this.contentState === 'default'
 			this.contentState = value
 			// FIXME upstream: NcAppSidebar should emit update:active
 			if (value === 'search') {
-				this.previousActiveTab = this.activeTab
+				if (enteredFromDefault) {
+					this.previousActiveTab = this.activeTab
+				}
 				this.activeTab = 'search-messages'
 			} else if (value === 'threads') {
-				this.previousActiveTab = this.activeTab
+				if (enteredFromDefault) {
+					this.previousActiveTab = this.activeTab
+				}
 				this.activeTab = 'threads'
+			} else if (value === 'thread') {
+				if (enteredFromDefault && this.activeTab !== 'thread') {
+					this.previousActiveTab = this.activeTab
+				}
+				this.activeTab = 'thread'
 			} else {
 				this.activeTab = this.previousActiveTab
 			}
@@ -619,6 +682,12 @@ export default {
 
 .app-sidebar-tabs__content #tab-chat {
 	/* Remove padding to maximize the space for the chat view. */
+	padding: 0;
+	height: 100%;
+}
+
+/* acorns: スレッドの右ペインも ChatView なので chat タブと同じ扱い */
+.app-sidebar-tabs__content #tab-thread {
 	padding: 0;
 	height: 100%;
 }

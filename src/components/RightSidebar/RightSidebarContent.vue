@@ -9,6 +9,7 @@ import type {
 	DashboardEvent,
 	UserProfileData,
 } from '../../types/index.ts'
+import type { SidebarContentState } from './threadPaneState.ts'
 
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
@@ -43,8 +44,6 @@ type MutualEvent = {
 	href?: DashboardEvent['eventLink']
 	color: string
 }
-
-type SidebarContentState = 'default' | 'search' | 'threads'
 
 const props = defineProps<{
 	isUser: boolean
@@ -103,6 +102,11 @@ const sidebarTitle = computed(() => {
 		})
 	} else if (props.state === 'threads') {
 		return t('spreed', 'Threads in {name}', { name: conversation.value.displayName }, {
+			escape: false,
+			sanitize: false,
+		})
+	} else if (props.state === 'thread') {
+		return t('spreed', 'Thread in {name}', { name: conversation.value.displayName }, {
 			escape: false,
 			sanitize: false,
 		})

@@ -7,7 +7,7 @@ import type { WatchStopHandle } from 'vue'
 import type { Conversation } from '../types/index.ts'
 
 import { emit } from '@nextcloud/event-bus'
-import { computed, onMounted, onUnmounted, watch, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, provide, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import CallFailedDialog from '../components/CallView/CallFailedDialog.vue'
@@ -17,6 +17,7 @@ import ExternalCallView from '../components/ExternalCallView.vue'
 import LobbyScreen from '../components/LobbyScreen.vue'
 import PollViewer from '../components/PollViewer/PollViewer.vue'
 import TopBar from '../components/TopBar/TopBar.vue'
+import { THREAD_ID_INJECTION_KEY, useRouteThreadId } from '../composables/useGetThreadId.ts'
 import { useIsInCall } from '../composables/useIsInCall.js'
 import { useJoinCall } from '../composables/useJoinCall.ts'
 import { watchJoinedConversation } from '../composables/useJoinedConversation.ts'
@@ -36,6 +37,17 @@ const router = useRouter()
 const route = useRoute()
 const actorStore = useActorStore()
 const settingsStore = useSettingsStore()
+
+// acorns: メイン領域は常にチャンネルを描く(設計書 §4.2)。
+// 配下(TopBar / ChatView / PollViewer)が useGetThreadId() で読む値は 0、
+// 書き込み(スレッド化・「N 件の返信」・戻る)は URL の threadId に流れ、右ペインが開く
+const routeThreadId = useRouteThreadId()
+provide(THREAD_ID_INJECTION_KEY, computed<number>({
+	get: () => 0,
+	set: (value) => {
+		routeThreadId.value = value
+	},
+}))
 
 /** Internal handlers for 'joined-conversation' watcher (direct-call) */
 let unwatchJoinedConversation: WatchStopHandle | undefined
