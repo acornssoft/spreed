@@ -485,6 +485,12 @@ export default {
 			// discard notification if the call ends
 			this.notifyUnreadMessages(null)
 
+			// acorns: 通話中に開いていたスレッドがあれば右ペインの状態に入る(設計書 §4.3「通話終了」)。
+			// 'thread' に入ったときは以降のタブ正規化('participants' への戻し)を行わない
+			if (this.routeThreadId && this.applyThreadPaneState(this.routeThreadId)) {
+				return
+			}
+
 			// If 'chat' tab wasn't active, leave it as is
 			if (this.activeTab !== 'chat') {
 				return
@@ -493,13 +499,6 @@ export default {
 			// In other case switch to other tabs
 			if (!this.isOneToOne) {
 				this.activeTab = 'participants'
-			}
-
-			// acorns: 通話中に開いていたスレッドがあれば右ペインの状態に入る(設計書 §4.3「通話終了」)
-			if (this.routeThreadId) {
-				const next = resolveThreadPaneState(this.routeThreadId, this.contentState, this.previousContentState, this.opened)
-				this.previousContentState = next.previousContentState
-				this.handleUpdateState(next.contentState)
 			}
 		},
 
@@ -511,15 +510,7 @@ export default {
 					// 通話中はチャットタブの ChatView が threadId を読むので状態は変えない(D4)
 					return
 				}
-				const next = resolveThreadPaneState(threadId, this.contentState, this.previousContentState, this.opened)
-				this.previousContentState = next.previousContentState
-				if (next.contentState !== this.contentState) {
-					this.handleUpdateState(next.contentState)
-				}
-				if (next.openSidebar) {
-					// ユーザーの「サイドバー閉」設定は上書きしない
-					this.sidebarStore.showSidebar({ cache: false })
-				}
+				this.applyThreadPaneState(threadId)
 			},
 		},
 
@@ -579,9 +570,9 @@ export default {
 				this.sidebarStore.showSidebar()
 			} else {
 				this.sidebarStore.hideSidebar()
-				// acorns: × で閉じたらスレッドも閉じる(URL と画面のずれを残さない。D6)
+				// acorns: × で閉じたらスレッドも閉じる。hash はスレッド内メッセージを指すので一緒に消す(D6)
 				if (this.routeThreadId) {
-					this.routeThreadId = 0
+					this.$router.replace({ query: { ...this.$route.query, threadId: undefined }, hash: '' })
 				}
 			}
 		},
@@ -598,6 +589,11 @@ export default {
 		},
 
 		handleUpdateState(value) {
+			// acorns: 'thread' から抜けるときは URL も揃える(D6/D7 と同じ経路 = watcher に流す)
+			if (this.contentState === 'thread' && value !== 'thread' && this.routeThreadId) {
+				this.$router.replace({ query: { ...this.$route.query, threadId: undefined }, hash: '' })
+				return
+			}
 			// acorns: 'thread' はどの contentState からでも入りうる。previousActiveTab は
 			// 'default' 状態のタブから出るときだけ保存する。さもないと 'thread' /
 			// 'search-messages' / 'threads' といった default 状態に存在しないタブ id が
@@ -623,6 +619,21 @@ export default {
 			} else {
 				this.activeTab = this.previousActiveTab
 			}
+		},
+
+		// acorns: URL の threadId を右ペインの contentState に反映する(設計書 §4.3)。
+		// 'thread' 状態に入った(= 呼び出し側でタブ正規化を抑制すべき)とき true を返す
+		applyThreadPaneState(threadId) {
+			const next = resolveThreadPaneState(threadId, this.contentState, this.previousContentState, this.opened)
+			this.previousContentState = next.previousContentState
+			if (next.contentState !== this.contentState) {
+				this.handleUpdateState(next.contentState)
+			}
+			if (next.openSidebar) {
+				// ユーザーの「サイドバー閉」設定は上書きしない
+				this.sidebarStore.showSidebar({ cache: false })
+			}
+			return next.contentState === 'thread'
 		},
 
 		showSettings() {

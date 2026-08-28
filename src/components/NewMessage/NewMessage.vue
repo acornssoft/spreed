@@ -1284,6 +1284,10 @@ export default {
 		},
 
 		preserveSelectionRange() {
+			// acorns: unmount 中の blur では richContenteditable が既に null(スレッドの右ペインを閉じたとき)
+			if (!this.$refs.richContenteditable) {
+				return
+			}
 			this.preservedSelectionRange = getCurrentSelectionRange(this.getContenteditable())
 		},
 
