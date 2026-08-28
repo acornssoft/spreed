@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { mount } from '@vue/test-utils'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { cloneDeep } from 'es-toolkit'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
@@ -62,6 +62,11 @@ describe('MessagesList.vue', () => {
 	let chatStore
 	let testStoreConfig
 	const getVisualLastReadMessageIdMock = vi.fn()
+
+	// acorns: wrapper は使い捨てにする。マウント済み wrapper が残っていると、共有 ref
+	// (isInitialisingMessages 等)の変化で後続テストの実行中に watcher が発火し、
+	// scrollToFocusedMessage → focusMessage の console.warn が unhandled error になる
+	enableAutoUnmount(afterEach)
 
 	beforeEach(() => {
 		setActivePinia(createPinia())
