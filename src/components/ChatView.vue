@@ -78,6 +78,7 @@ import NewMessageUploadEditor from './NewMessage/NewMessageUploadEditor.vue'
 import ThreadHeader from './RightSidebar/Threads/ThreadHeader.vue'
 import TransitionWrapper from './UIShared/TransitionWrapper.vue'
 import IconFileUpload from '../../img/material-icons/file-upload.svg?raw'
+import { useGetMessagesProvider } from '../composables/useGetMessages.ts'
 import { useGetThreadId } from '../composables/useGetThreadId.ts'
 import { useGetToken } from '../composables/useGetToken.ts'
 import { CONVERSATION, PARTICIPANT } from '../constants.ts'
@@ -122,6 +123,10 @@ export default {
 
 	setup(props) {
 		provide('chatView:isSidebar', props.isSidebar)
+		// acorns: メッセージ取得の制御は ChatView ごとに 1 つ(メイン=チャンネル / 右ペイン=スレッド)。
+		// 以前は App.vue 等のルートで 1 つだったが、2 つの MessagesList が context を共有すると
+		// チャンネル側のスクロール読み込みがスレッドの threadId で走る(設計書 §4.4)
+		useGetMessagesProvider()
 		return {
 			IconFileUpload,
 			token: useGetToken(),

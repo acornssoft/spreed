@@ -37,7 +37,6 @@ import PollViewer from './components/PollViewer/PollViewer.vue'
 import InternalSignalingHint from './components/RightSidebar/InternalSignalingHint.vue'
 import TopBar from './components/TopBar/TopBar.vue'
 import TransitionWrapper from './components/UIShared/TransitionWrapper.vue'
-import { useGetMessagesProvider } from './composables/useGetMessages.ts'
 import { useHashCheck } from './composables/useHashCheck.js'
 import { useRecordingStatusSync } from './composables/useRecordingStatusSync.ts'
 import { useSessionIssueHandler } from './composables/useSessionIssueHandler.ts'
@@ -67,7 +66,6 @@ export default {
 
 	setup() {
 		useHashCheck()
-		useGetMessagesProvider()
 		useRecordingStatusSync()
 
 		return {

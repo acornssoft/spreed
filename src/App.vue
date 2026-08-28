@@ -46,7 +46,6 @@ import {
 	useDocumentFullscreen,
 } from './composables/useDocumentFullscreen.ts'
 import { useDocumentTitle } from './composables/useDocumentTitle.ts'
-import { useGetMessagesProvider } from './composables/useGetMessages.ts'
 import { useGetToken } from './composables/useGetToken.ts'
 import { useHashCheck } from './composables/useHashCheck.js'
 import { useInterceptNotifications } from './composables/useInterceptNotifications.ts'
@@ -94,8 +93,6 @@ export default {
 
 	setup() {
 		useDocumentTitle()
-		// Provide context for MessagesList mounted in different places
-		useGetMessagesProvider()
 		// Intercept some notifications and handle them in the Talk app
 		useInterceptNotifications()
 		// Register recording status sync from signaling message
