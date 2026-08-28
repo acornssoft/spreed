@@ -15,6 +15,7 @@ import MessagesGroup from './MessagesGroup/MessagesGroup.vue'
 import MessagesSystemGroup from './MessagesGroup/MessagesSystemGroup.vue'
 import MessagesList from './MessagesList.vue'
 import router from '../../__mocks__/router.js'
+import { THREAD_ID_INJECTION_KEY } from '../../composables/useGetThreadId.ts'
 import { ATTENDEE, MESSAGE } from '../../constants.ts'
 import storeConfig from '../../store/storeConfig.js'
 import { useChatStore } from '../../stores/chat.ts'
@@ -34,19 +35,24 @@ const isInitialisingMessages = ref(true)
 const isChatBeginningReached = ref(0)
 const isChatEndReached = ref(0)
 
-vi.mock('../../composables/useGetMessages.ts', async () => ({
-	useGetMessages: vi.fn(() => ({
-		contextMessageId,
-		loadingOldMessages,
-		loadingNewMessages,
-		isInitialisingMessages,
-		isChatBeginningReached,
-		isChatEndReached,
+vi.mock('../../composables/useGetMessages.ts', async () => {
+	// acorns: shouldHandleRouteChange などの純関数は実物を使い、useGetMessages だけモックにする
+	const actual = await vi.importActual('../../composables/useGetMessages.ts')
+	return {
+		...actual,
+		useGetMessages: vi.fn(() => ({
+			contextMessageId,
+			loadingOldMessages,
+			loadingNewMessages,
+			isInitialisingMessages,
+			isChatBeginningReached,
+			isChatEndReached,
 
-		getOldMessages: vi.fn(),
-		getNewMessages: vi.fn(),
-	})),
-}))
+			getOldMessages: vi.fn(),
+			getNewMessages: vi.fn(),
+		})),
+	}
+})
 
 const fakeTimestamp = (value) => new Date(value).getTime() / 1000
 
@@ -775,6 +781,52 @@ describe('MessagesList.vue', () => {
 			} finally {
 				document.body.removeChild(outsideElement)
 			}
+		})
+	})
+
+	describe('getMessageIdFromHash', () => {
+		afterEach(async () => {
+			await router.push({ path: '/call/' + TOKEN })
+		})
+
+		/**
+		 * Mount as a given instance (0 = channel main list, >0 = thread pane)
+		 *
+		 * @param {number} threadId threadId of this MessagesList instance
+		 */
+		function mountMessagesListAs(threadId) {
+			return mount(MessagesList, {
+				global: {
+					plugins: [router, store],
+					provide: {
+						[THREAD_ID_INJECTION_KEY]: ref(threadId),
+					},
+				},
+				props: {
+					token: TOKEN,
+					isChatScrolledToBottom: true,
+				},
+			})
+		}
+
+		test('reads #message_M from hash only when URL threadId matches own threadId', async () => {
+			// acorns: 通知リンク ?threadId=285#message_303 の hash はペインのもの。
+			// メイン(threadId=0)が読むと、チャンネルに存在しない id を探してフォールバック無しで終わる
+			await router.push({ path: '/call/' + TOKEN, query: { threadId: '285' }, hash: '#message_303' })
+			let wrapper = mountMessagesListAs(0)
+			expect(wrapper.vm.getMessageIdFromHash()).toBeNull()
+			wrapper.unmount()
+
+			// threadId 無し + hash ならメインが読む
+			await router.push({ path: '/call/' + TOKEN, hash: '#message_303' })
+			wrapper = mountMessagesListAs(0)
+			expect(wrapper.vm.getMessageIdFromHash()).toBe(303)
+			wrapper.unmount()
+
+			// ペイン(285)は自分宛の hash を読む
+			await router.push({ path: '/call/' + TOKEN, query: { threadId: '285' }, hash: '#message_303' })
+			wrapper = mountMessagesListAs(285)
+			expect(wrapper.vm.getMessageIdFromHash()).toBe(303)
 		})
 	})
 })

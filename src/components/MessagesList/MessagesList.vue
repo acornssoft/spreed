@@ -116,7 +116,7 @@ import MessagesGroup from './MessagesGroup/MessagesGroup.vue'
 import MessagesSystemGroup from './MessagesGroup/MessagesSystemGroup.vue'
 import PinnedMessage from './PinnedMessage/PinnedMessage.vue'
 import { useDocumentVisibility } from '../../composables/useDocumentVisibility.ts'
-import { useGetMessages } from '../../composables/useGetMessages.ts'
+import { shouldHandleRouteChange, useGetMessages } from '../../composables/useGetMessages.ts'
 import { useGetThreadId } from '../../composables/useGetThreadId.ts'
 import { ATTENDEE, CONVERSATION } from '../../constants.ts'
 import { CHAT_STYLE } from '../../constants.ts'
@@ -656,6 +656,12 @@ export default {
 		},
 
 		getMessageIdFromHash(hash = undefined) {
+			// acorns: hash は URL の threadId と一致するインスタンス(ペイン or メイン)のもの(設計書 §4.5)。
+			// 一致しないインスタンスが hash のメッセージを探すと、見つからずにフォールバック無しで終わってしまう
+			const routeThreadId = this.$route?.query?.threadId ? Number(this.$route.query.threadId) : 0
+			if (!shouldHandleRouteChange(this.threadId, routeThreadId)) {
+				return null
+			}
 			if (hash) {
 				return parseInt(hash.slice(9), 10)
 			} else if (this.$route?.hash?.startsWith('#message_')) {
