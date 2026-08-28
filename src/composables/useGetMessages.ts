@@ -18,7 +18,7 @@ import type { PollingInstance } from '../utils/pollingOwnership.ts'
 import { isCancel } from '@nextcloud/axios'
 import { subscribe, unsubscribe } from '@nextcloud/event-bus'
 import { t } from '@nextcloud/l10n'
-import { computed, inject, onBeforeUnmount, provide, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, provide, ref, watch } from 'vue'
 import { START_LOCATION, useRoute } from 'vue-router'
 import { useStore } from 'vuex'
 import { ATTENDEE, CHAT, MESSAGE } from '../constants.ts'
@@ -133,6 +133,9 @@ export function useGetMessagesProvider() {
 	const loadingNewMessages = ref(false)
 	const isInitialisingMessages = ref(true)
 	const stopFetchingOldMessages = ref(false)
+	// acorns: 閉じる途中のペイン(URL の threadId が 0 になった直後、unmount 前)が
+	// チャンネルの route-change を処理してメインのコンテキスト取得をキャンセルしないようにする
+	let isUnmounted = false
 
 	/**
 	 * Returns whether the current participant is a participant of current conversation.
@@ -240,6 +243,7 @@ export function useGetMessagesProvider() {
 	}, 30_000)
 
 	onBeforeUnmount(() => {
+		isUnmounted = true
 		unsubscribe('networkOffline', handleNetworkOffline)
 		unsubscribe('networkOnline', handleNetworkOnline)
 		EventBus.off('route-change', onRouteChange)
@@ -297,6 +301,12 @@ export function useGetMessagesProvider() {
 	 * @param payload.to
 	 */
 	async function onRouteChange({ from, to }: { from: RouteLocation, to: RouteLocation }) {
+		// acorns: 変更の反映(unmount)を待ってから判定する。閉じる途中のペインは処理しない
+		await nextTick()
+		if (isUnmounted) {
+			return
+		}
+
 		// Reset blocker for fetching old messages
 		stopFetchingOldMessages.value = false
 		// Reset messages list to default view
@@ -498,6 +508,8 @@ export function useGetMessagesProvider() {
 				// Get chat messages before last read message and after it
 				messageId: messageId !== MESSAGE.CHAT_BEGIN_ID ? messageId : 0,
 				threadId: threadId !== 0 ? threadId : undefined,
+				// acorns: メイン(token:0)とスレッドペイン(token:threadId)でキャンセルを分離する
+				requestId: `${token}:${threadId || 0}`,
 				minimumVisible: CHAT.MINIMUM_VISIBLE,
 			})
 			debugTimer.end(`${token} | get context`, 'status 200')
@@ -547,6 +559,8 @@ export function useGetMessagesProvider() {
 				includeLastKnown,
 				lookIntoFuture: CHAT.FETCH_OLD,
 				threadId,
+				// acorns: メイン(token:0)とスレッドペイン(token:threadId)でキャンセルを分離する
+				requestId: `${token}:${threadId || 0}`,
 				minimumVisible: CHAT.MINIMUM_VISIBLE,
 			})
 			debugTimer.end(`${token} | fetch history`, 'status 200')
@@ -597,6 +611,8 @@ export function useGetMessagesProvider() {
 				threadId,
 				includeLastKnown,
 				lookIntoFuture: CHAT.FETCH_NEW,
+				// acorns: メイン(token:0)とスレッドペイン(token:threadId)でキャンセルを分離する
+				requestId: `${token}:${threadId || 0}`,
 				minimumVisible: CHAT.MINIMUM_VISIBLE,
 			})
 			debugTimer.end(`${token} | fetch history (new)`, 'status 200')
@@ -777,6 +793,8 @@ export function useGetMessagesProvider() {
 				lastKnownMessageId,
 				includeLastKnown: false,
 				lookIntoFuture: CHAT.FETCH_NEW,
+				// acorns: フォールバックポーリング専用の requestId で他の取得とキャンセルを分離する
+				requestId: `${token}:fallback`,
 				minimumVisible: 0, // handle as many as server gives
 			})
 

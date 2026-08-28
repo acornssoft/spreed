@@ -929,7 +929,8 @@ describe('messagesStore', () => {
 				lastKnownMessageId: 100,
 			}).catch(() => {})
 
-			expect(store.state.cancelFetchMessages).toBe(cancelFunctionMock)
+			// acorns: requestId 省略時は token がキーになる
+			expect(store.state.cancelFetchMessages[TOKEN]).toBe(cancelFunctionMock)
 
 			expect(cancelFunctionMock).not.toHaveBeenCalled()
 
@@ -937,7 +938,7 @@ describe('messagesStore', () => {
 
 			expect(cancelFunctionMock).toHaveBeenCalledWith('canceled')
 
-			expect(store.state.cancelFetchMessages).toBe(null)
+			expect(store.state.cancelFetchMessages).toStrictEqual({})
 		})
 
 		test('cancels fetching messages when fetching again', async () => {
@@ -946,7 +947,7 @@ describe('messagesStore', () => {
 				lastKnownMessageId: 100,
 			}).catch(() => {})
 
-			expect(store.state.cancelFetchMessages).toBe(cancelFunctionMock)
+			expect(store.state.cancelFetchMessages[TOKEN]).toBe(cancelFunctionMock)
 
 			store.dispatch('fetchMessages', {
 				token: TOKEN,
@@ -1113,6 +1114,145 @@ describe('messagesStore', () => {
 			expect(addGuestNameAction).toHaveBeenCalledWith(messagesContext[1], { noUpdate: true })
 
 			expect(store.getters.messagesList(TOKEN)).toStrictEqual([...messagesFetch, ...messagesContext])
+		})
+	})
+
+	describe('request cancel isolation (acorns)', () => {
+		let cancelFunctionMocks
+
+		beforeEach(() => {
+			testStoreConfig = cloneDeep(messagesStore)
+			const guestNameStore = useGuestNameStore()
+
+			testStoreConfig.actions.updateLastCommonReadMessage = vi.fn()
+			guestNameStore.addGuestName = vi.fn()
+			testStoreConfig.getters.conversation = vi.fn().mockReturnValue(vi.fn())
+
+			cancelFunctionMocks = []
+			CancelableRequest.mockImplementation((request) => {
+				const cancelFunctionMock = vi.fn()
+				cancelFunctionMocks.push(cancelFunctionMock)
+				return {
+					request,
+					cancel: cancelFunctionMock,
+				}
+			})
+
+			store = createStore(testStoreConfig)
+		})
+
+		describe('fetchMessages', () => {
+			test('does not cancel previous request with a different requestId', () => {
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:138`,
+				}).catch(() => {})
+
+				expect(cancelFunctionMocks[0]).not.toHaveBeenCalled()
+				expect(store.state.cancelFetchMessages[`${TOKEN}:0`]).toBe(cancelFunctionMocks[0])
+				expect(store.state.cancelFetchMessages[`${TOKEN}:138`]).toBe(cancelFunctionMocks[1])
+			})
+
+			test('cancels previous request with the same requestId', () => {
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
+				expect(store.state.cancelFetchMessages[`${TOKEN}:0`]).toBe(cancelFunctionMocks[1])
+			})
+
+			test('cancelFetchMessages without requestId cancels all requests', () => {
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('fetchMessages', {
+					token: TOKEN,
+					lastKnownMessageId: 100,
+					requestId: `${TOKEN}:138`,
+				}).catch(() => {})
+
+				store.dispatch('cancelFetchMessages')
+
+				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
+				expect(cancelFunctionMocks[1]).toHaveBeenCalledWith('canceled')
+				expect(store.state.cancelFetchMessages).toStrictEqual({})
+			})
+		})
+
+		describe('getMessageContext', () => {
+			test('does not cancel previous request with a different requestId', () => {
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:138`,
+				}).catch(() => {})
+
+				expect(cancelFunctionMocks[0]).not.toHaveBeenCalled()
+				expect(store.state.cancelGetMessageContext[`${TOKEN}:0`]).toBe(cancelFunctionMocks[0])
+				expect(store.state.cancelGetMessageContext[`${TOKEN}:138`]).toBe(cancelFunctionMocks[1])
+			})
+
+			test('cancels previous request with the same requestId', () => {
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
+				expect(store.state.cancelGetMessageContext[`${TOKEN}:0`]).toBe(cancelFunctionMocks[1])
+			})
+
+			test('cancelGetMessageContext without requestId cancels all requests', () => {
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:0`,
+				}).catch(() => {})
+
+				store.dispatch('getMessageContext', {
+					token: TOKEN,
+					messageId: 100,
+					requestId: `${TOKEN}:138`,
+				}).catch(() => {})
+
+				store.dispatch('cancelGetMessageContext')
+
+				expect(cancelFunctionMocks[0]).toHaveBeenCalledWith('canceled')
+				expect(cancelFunctionMocks[1]).toHaveBeenCalledWith('canceled')
+				expect(store.state.cancelGetMessageContext).toStrictEqual({})
+			})
 		})
 	})
 

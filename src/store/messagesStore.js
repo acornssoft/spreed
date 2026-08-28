@@ -111,17 +111,23 @@ function state() {
 		loadedMessages: {},
 
 		/**
-		 * Stores the cancel function returned by `cancelableFetchMessages`,
-		 * which allows to cancel the previous request for old messages
-		 * when quickly switching to a new conversation.
+		 * Stores the cancel functions returned by `cancelableFetchMessages`
+		 * per request id, which allows to cancel the previous request for
+		 * old messages when quickly switching to a new conversation.
+		 *
+		 * acorns: requestId 単位の map(token:threadId)。メインとスレッドペインが
+		 * 同時に取得しても互いをキャンセルしないようにするため
 		 */
-		cancelFetchMessages: null,
+		cancelFetchMessages: {},
 		/**
-		 * Stores the cancel function returned by `cancelableGetMessageContext`,
-		 * which allows to cancel the previous request for the context messages
-		 * when quickly switching to another conversation.
+		 * Stores the cancel functions returned by `cancelableGetMessageContext`
+		 * per request id, which allows to cancel the previous request for the
+		 * context messages when quickly switching to another conversation.
+		 *
+		 * acorns: requestId 単位の map(token:threadId)。メインとスレッドペインが
+		 * 同時に取得しても互いをキャンセルしないようにするため
 		 */
-		cancelGetMessageContext: null,
+		cancelGetMessageContext: {},
 		/**
 		 * Stores the cancel function returned by `cancelablePollNewMessages`,
 		 * which allows to cancel the previous long polling request for new
@@ -214,12 +220,20 @@ const getters = {
 }
 
 const mutations = {
-	setCancelFetchMessages(state, cancelFunction) {
-		state.cancelFetchMessages = cancelFunction
+	setCancelFetchMessages(state, { requestId, cancelFunction }) {
+		if (cancelFunction) {
+			state.cancelFetchMessages[requestId] = cancelFunction
+		} else {
+			delete state.cancelFetchMessages[requestId]
+		}
 	},
 
-	setCancelGetMessageContext(state, cancelFunction) {
-		state.cancelGetMessageContext = cancelFunction
+	setCancelGetMessageContext(state, { requestId, cancelFunction }) {
+		if (cancelFunction) {
+			state.cancelGetMessageContext[requestId] = cancelFunction
+		} else {
+			delete state.cancelGetMessageContext[requestId]
+		}
 	},
 
 	setCancelPollNewMessages(state, { requestId, cancelFunction }) {
@@ -932,6 +946,7 @@ const actions = {
 	 * @param {object} data.requestOptions request options;
 	 * @param {string} data.lastKnownMessageId last known message id;
 	 * @param {number} data.threadId Thread id to fetch messages for;
+	 * @param {string} [data.requestId] id to identify request uniquely (defaults to token)
 	 * @param {number} data.minimumVisible Minimum number of chat messages we want to load
 	 * @param {boolean} data.includeLastKnown whether to include the last known message in the response;
 	 * @param {number} [data.lookIntoFuture] direction of message fetch
@@ -941,18 +956,21 @@ const actions = {
 		lastKnownMessageId,
 		includeLastKnown,
 		threadId,
+		requestId,
 		requestOptions,
 		minimumVisible,
 		lookIntoFuture = CHAT.FETCH_OLD,
 	}) {
 		minimumVisible = (typeof minimumVisible === 'undefined') ? CHAT.MINIMUM_VISIBLE : minimumVisible
 
-		context.dispatch('cancelFetchMessages')
+		// acorns: requestId 単位で直前のリクエストだけキャンセルする(他ペインの取得は潰さない)
+		const cancelRequestId = requestId ?? token
+		context.dispatch('cancelFetchMessages', { requestId: cancelRequestId })
 
 		// Get a new cancelable request function and cancel function pair
 		const { request, cancel } = CancelableRequest(fetchMessages)
 		// Assign the new cancel function to our data value
-		context.commit('setCancelFetchMessages', cancel)
+		context.commit('setCancelFetchMessages', { requestId: cancelRequestId, cancelFunction: cancel })
 
 		const response = await request({
 			token,
@@ -962,6 +980,7 @@ const actions = {
 			lookIntoFuture,
 			limit: CHAT.FETCH_LIMIT,
 		}, requestOptions)
+		context.commit('setCancelFetchMessages', { requestId: cancelRequestId })
 
 		const haveLastGiven = 'x-chat-last-given' in response.headers
 		let lastGivenMessageId = haveLastGiven
@@ -1014,6 +1033,7 @@ const actions = {
 				lastKnownMessageId: lastGivenMessageId,
 				includeLastKnown,
 				threadId,
+				requestId: cancelRequestId,
 				lookIntoFuture,
 				minimumVisible,
 			})
@@ -1031,6 +1051,7 @@ const actions = {
 	 * @param {string} data.token the conversation token;
 	 * @param {number} data.messageId Message id to get the context for;
 	 * @param {number} data.threadId Thread id to get the context for;
+	 * @param {string} [data.requestId] id to identify request uniquely (defaults to token)
 	 * @param {object} data.requestOptions request options;
 	 * @param {number} data.minimumVisible Minimum number of chat messages we want to load
 	 */
@@ -1038,17 +1059,20 @@ const actions = {
 		token,
 		messageId,
 		threadId,
+		requestId,
 		requestOptions,
 		minimumVisible,
 	}) {
 		minimumVisible = (typeof minimumVisible === 'undefined') ? Math.floor(CHAT.MINIMUM_VISIBLE / 2) : minimumVisible
 
-		context.dispatch('cancelGetMessageContext')
+		// acorns: requestId 単位で直前のリクエストだけキャンセルする(他ペインの取得は潰さない)
+		const cancelRequestId = requestId ?? token
+		context.dispatch('cancelGetMessageContext', { requestId: cancelRequestId })
 
 		// Get a new cancelable request function and cancel function pair
 		const { request, cancel } = CancelableRequest(getMessageContext)
 		// Assign the new cancel function to our data value
-		context.commit('setCancelGetMessageContext', cancel)
+		context.commit('setCancelGetMessageContext', { requestId: cancelRequestId, cancelFunction: cancel })
 
 		const response = await request({
 			token,
@@ -1056,6 +1080,7 @@ const actions = {
 			threadId,
 			limit: CHAT.FETCH_LIMIT / 2,
 		}, requestOptions)
+		context.commit('setCancelGetMessageContext', { requestId: cancelRequestId })
 
 		let oldestKnownMessageId = messageId
 		let newestKnownMessageId = messageId
@@ -1099,6 +1124,7 @@ const actions = {
 				lastKnownMessageId: oldestKnownMessageId,
 				includeLastKnown: false,
 				threadId,
+				requestId: cancelRequestId,
 				lookIntoFuture: CHAT.FETCH_OLD,
 				minimumVisible: minimumVisible * 2,
 			})
@@ -1110,31 +1136,47 @@ const actions = {
 	/**
 	 * Cancels a previously running "fetchMessages" action if applicable.
 	 *
+	 * acorns: requestId 指定時はそのリクエストだけ、省略時は全件キャンセル(従来互換)
+	 *
 	 * @param {object} context default store context;
+	 * @param {object} [payload] the wrapping object;
+	 * @param {string} [payload.requestId] id of the request to cancel (all requests when omitted)
 	 * @return {boolean} true if a request got cancelled, false otherwise
 	 */
-	cancelFetchMessages(context) {
-		if (context.state.cancelFetchMessages) {
-			context.state.cancelFetchMessages('canceled')
-			context.commit('setCancelFetchMessages', null)
-			return true
+	cancelFetchMessages(context, { requestId } = {}) {
+		const requestIds = requestId ? [requestId] : Object.keys(context.state.cancelFetchMessages)
+		let canceledAny = false
+		for (const id of requestIds) {
+			if (context.state.cancelFetchMessages[id]) {
+				context.state.cancelFetchMessages[id]('canceled')
+				context.commit('setCancelFetchMessages', { requestId: id })
+				canceledAny = true
+			}
 		}
-		return false
+		return canceledAny
 	},
 
 	/**
 	 * Cancels a previously running "getMessageContext" action if applicable.
 	 *
+	 * acorns: requestId 指定時はそのリクエストだけ、省略時は全件キャンセル(従来互換)
+	 *
 	 * @param {object} context default store context;
+	 * @param {object} [payload] the wrapping object;
+	 * @param {string} [payload.requestId] id of the request to cancel (all requests when omitted)
 	 * @return {boolean} true if a request got cancelled, false otherwise
 	 */
-	cancelGetMessageContext(context) {
-		if (context.state.cancelGetMessageContext) {
-			context.state.cancelGetMessageContext('canceled')
-			context.commit('setCancelGetMessageContext', null)
-			return true
+	cancelGetMessageContext(context, { requestId } = {}) {
+		const requestIds = requestId ? [requestId] : Object.keys(context.state.cancelGetMessageContext)
+		let canceledAny = false
+		for (const id of requestIds) {
+			if (context.state.cancelGetMessageContext[id]) {
+				context.state.cancelGetMessageContext[id]('canceled')
+				context.commit('setCancelGetMessageContext', { requestId: id })
+				canceledAny = true
+			}
 		}
-		return false
+		return canceledAny
 	},
 
 	/**
