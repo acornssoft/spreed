@@ -1555,6 +1555,13 @@ export default {
 		--contenteditable-inline-start-offset: calc(var(--emoji-button-size) + var(--contenteditable-space));
 	}
 
+	// acorns: multiline はキー挙動(Enter=改行、Shift+Enter 送信)のために使う。
+	// 高さは通常の入力欄と同じにする(upstream の multiline は 3 行固定・上限なしになる)
+	:deep(.rich-contenteditable__input--multiline) {
+		min-height: var(--default-clickable-area);
+		max-height: calc(var(--default-clickable-area) * 5.5);
+	}
+
 	&__quote {
 		margin-block-end: var(--default-grid-baseline);
 		background-color: var(--color-background-hover);
