@@ -29,13 +29,21 @@ class ReminderMapper extends QBMapper {
 		parent::__construct($db, 'talk_reminders', Reminder::class);
 	}
 
+	/**
+	 * @param int $limit acorns: 0 以下で無制限
+	 * @return list<Reminder>
+	 */
 	public function findForUser(string $userId, int $limit): array {
 		$query = $this->db->getQueryBuilder();
 		$query->select('*')
 			->from($this->getTableName())
 			->where($query->expr()->eq('user_id', $query->createNamedParameter($userId, IQueryBuilder::PARAM_STR)))
 			->orderBy('date_time', 'ASC')
-			->setMaxResults($limit);
+			// acorns: 同時刻(無期限)は新しく付けた順
+			->addOrderBy('id', 'DESC');
+		if ($limit > 0) {
+			$query->setMaxResults($limit);
+		}
 
 		return $this->findEntities($query);
 	}

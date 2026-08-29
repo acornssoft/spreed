@@ -26,6 +26,11 @@ use OCP\DB\Types;
  */
 class Reminder extends Entity implements \JsonSerializable {
 	public const NUM_UPCOMING_REMINDERS = 10;
+	/**
+	 * acorns: 無期限(ブックマーク)リマインダーの date_time。2100-01-01 00:00:00 UTC。
+	 * 通知ジョブは `date_time < now` を見るので、この値のリマインダーは通知・削除されず残る。
+	 */
+	public const NO_DUE_DATE_TIMESTAMP = 4102444800;
 
 	protected string $userId = '';
 	protected string $token = '';
