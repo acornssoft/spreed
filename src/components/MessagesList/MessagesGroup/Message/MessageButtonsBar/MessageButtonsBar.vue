@@ -300,6 +300,18 @@
 
 					<NcActionSeparator />
 
+					<!-- acorns: 期限なし(ブックマーク) -->
+					<NcActionButton
+						v-if="supportReminderBookmarks"
+						key="set-reminder-no-due-date"
+						closeAfterClick
+						@click.stop="setReminderNoDueDate">
+						<template #icon>
+							<IconBookmarkOutline :size="20" />
+						</template>
+						{{ t('spreed', 'Remind me later – no due date') }}
+					</NcActionButton>
+
 					<NcActionButton
 						v-for="option in getCustomDateOptions()"
 						:key="option.key"
@@ -444,6 +456,7 @@ import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconArrowLeftTop from 'vue-material-design-icons/ArrowLeftTop.vue'
 import IconArrowRightTop from 'vue-material-design-icons/ArrowRightTop.vue'
 import IconBellOffOutline from 'vue-material-design-icons/BellOffOutline.vue'
+import IconBookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import IconCalendarClockOutline from 'vue-material-design-icons/CalendarClockOutline.vue'
 import IconCheck from 'vue-material-design-icons/Check.vue'
 import IconCheckAll from 'vue-material-design-icons/CheckAll.vue'
@@ -468,7 +481,7 @@ import MessageTranslateDialog from './MessageTranslateDialog.vue'
 import IconFileDownload from '../../../../../../img/material-icons/file-download.svg?raw'
 import { useGetThreadId } from '../../../../../composables/useGetThreadId.ts'
 import { useMessageInfo } from '../../../../../composables/useMessageInfo.ts'
-import { ATTENDEE, CONVERSATION, MESSAGE, PARTICIPANT } from '../../../../../constants.ts'
+import { ATTENDEE, CONVERSATION, MESSAGE, PARTICIPANT, REMINDER } from '../../../../../constants.ts'
 import { getTalkConfig, hasTalkFeature } from '../../../../../services/CapabilitiesManager.ts'
 import { createThreadFromMessage } from '../../../../../services/messagesService.ts'
 import { getMessageReminder, removeMessageReminder, setMessageReminder } from '../../../../../services/remindersService.js'
@@ -481,6 +494,7 @@ import { generatePublicShareDownloadUrl, generateUserFileUrl, generateUserFolder
 import { convertToUnix, formatDateTime, ONE_DAY_IN_MS } from '../../../../../utils/formattedTime.ts'
 import { getCustomDateOptions } from '../../../../../utils/getCustomDateOptions.ts'
 import { copyConversationLinkToClipboard } from '../../../../../utils/handleUrl.ts'
+import { isNoDueDateReminder } from '../../../../../utils/reminder.ts'
 import { parseMentions } from '../../../../../utils/textParse.ts'
 
 const PIN_DURATION_OPTIONS = [
@@ -509,6 +523,7 @@ export default {
 		IconAlarm,
 		IconArrowLeft,
 		IconBellOffOutline,
+		IconBookmarkOutline,
 		IconCalendarClockOutline,
 		IconCloseCircleOutline,
 		IconCheck,
@@ -613,6 +628,8 @@ export default {
 			isConversationModifiable,
 		} = useMessageInfo(message)
 		const supportReminders = hasTalkFeature(message.value.token, 'remind-me-later')
+		// acorns: 無期限リマインダー(ブックマーク)に対応したサーバか
+		const supportReminderBookmarks = supportReminders && hasTalkFeature(message.value.token, 'acorns-reminder-no-due-date')
 		const supportPinMessage = hasTalkFeature(message.value.token, 'pinned-messages')
 
 		const isTranslationAvailable = getTalkConfig(message.value.token, 'chat', 'has-translation-providers')
@@ -623,6 +640,7 @@ export default {
 			IconFileDownload,
 			messageActions,
 			supportReminders,
+			supportReminderBookmarks,
 			reactionsStore,
 			isEditable,
 			isCurrentUserOwnMessage,
@@ -751,6 +769,10 @@ export default {
 		clearReminderLabel() {
 			if (!this.currentReminder) {
 				return ''
+			}
+			// acorns: 期限なしは日時を出さない
+			if (isNoDueDateReminder(this.currentReminder.timestamp)) {
+				return t('spreed', 'Clear reminder – no due date')
 			}
 			return t('spreed', 'Clear reminder – {timeLocale}', { timeLocale: formatDateTime(this.currentReminder.timestamp * 1000, 'shortWeekdayWithTime') })
 		},
@@ -1006,6 +1028,20 @@ export default {
 				showSuccess(t('spreed', 'A reminder was successfully set at {datetime}', {
 					datetime: formatDateTime(timestamp, 'longDateWithTime'),
 				}))
+			} catch (error) {
+				console.error(error)
+				showError(t('spreed', 'Error occurred when creating a reminder'))
+			}
+		},
+
+		/**
+		 * acorns: 期限なし(ブックマーク)のリマインダーを付ける。
+		 * setReminder() は ms を受けて秒に変換するので、固定の秒値はここから直接送る
+		 */
+		async setReminderNoDueDate() {
+			try {
+				await setMessageReminder(this.message.token, this.message.id, REMINDER.NO_DUE_DATE_TIMESTAMP)
+				showSuccess(t('spreed', 'A reminder without due date was set'))
 			} catch (error) {
 				console.error(error)
 				showError(t('spreed', 'Error occurred when creating a reminder'))

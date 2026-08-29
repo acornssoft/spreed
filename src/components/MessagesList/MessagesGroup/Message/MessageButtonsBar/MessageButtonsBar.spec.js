@@ -12,12 +12,20 @@ import { createStore } from 'vuex'
 import MessageButtonsBar from './../MessageButtonsBar/MessageButtonsBar.vue'
 import router from '../../../../../__mocks__/router.js'
 import * as useMessageInfoModule from '../../../../../composables/useMessageInfo.ts'
-import { ATTENDEE, CONVERSATION, MESSAGE, PARTICIPANT } from '../../../../../constants.ts'
+import { ATTENDEE, CONVERSATION, MESSAGE, PARTICIPANT, REMINDER } from '../../../../../constants.ts'
+import * as remindersService from '../../../../../services/remindersService.js'
 import storeConfig from '../../../../../store/storeConfig.js'
 import { useActorStore } from '../../../../../stores/actor.ts'
 import { useIntegrationsStore } from '../../../../../stores/integrations.js'
 import { useTokenStore } from '../../../../../stores/token.ts'
 import { findNcActionButton, findNcButton } from '../../../../../test-helpers.js'
+
+// acorns: 「期限なし(後で見る)」の setMessageReminder 呼び出しを検証するためモックする
+vi.mock('../../../../../services/remindersService.js', () => ({
+	getMessageReminder: vi.fn(() => Promise.resolve({ data: { ocs: { data: null } } })),
+	setMessageReminder: vi.fn(() => Promise.resolve({ data: { ocs: { data: {} } } })),
+	removeMessageReminder: vi.fn(),
+}))
 
 describe('MessageButtonsBar.vue', () => {
 	const TOKEN = 'XXTOKENXX'
@@ -352,6 +360,28 @@ describe('MessageButtonsBar.vue', () => {
 				apiVersion: 'v3',
 				message: messageProps.message,
 				metadata: conversationProps,
+			})
+		})
+
+		describe('reminder without due date (acorns)', () => {
+			test('sets a no-due-date reminder from the submenu', async () => {
+				store = createStore(testStoreConfig)
+				const wrapper = mountMessageButtonsBar(messageProps, true)
+				wrapper.vm.submenu = 'reminder'
+				await wrapper.vm.$nextTick()
+
+				const button = findNcActionButton(wrapper, 'Remind me later – no due date')
+				expect(button.exists()).toBe(true)
+				await button.find('button').trigger('click')
+
+				expect(remindersService.setMessageReminder).toHaveBeenCalledWith(TOKEN, 123, REMINDER.NO_DUE_DATE_TIMESTAMP)
+			})
+
+			test('labels an existing no-due-date reminder without a date', async () => {
+				store = createStore(testStoreConfig)
+				const wrapper = mountMessageButtonsBar(messageProps, true)
+				wrapper.vm.currentReminder = { timestamp: REMINDER.NO_DUE_DATE_TIMESTAMP }
+				expect(wrapper.vm.clearReminderLabel).toBe('Clear reminder – no due date')
 			})
 		})
 	})
