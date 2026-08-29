@@ -29,6 +29,11 @@ vi.mock('../../services/conversationTagsService', () => ({
 vi.mock('../../services/coreService', () => ({
 	autocompleteQuery: vi.fn(),
 }))
+// acorns: 「リマインダー」一覧を開くと dashboardStore.fetchUpcomingReminders() が走るため
+vi.mock('../../services/remindersService', () => ({
+	getUpcomingReminders: vi.fn(() => generateOCSResponse({ payload: [] })),
+	removeMessageReminder: vi.fn(() => generateOCSResponse({ payload: [] })),
+}))
 
 // short-circuit debounce
 vi.mock('debounce', () => ({
@@ -598,5 +603,32 @@ describe('LeftSidebar.vue', () => {
 		unsubscribe('show-settings', eventHandler)
 
 		expect(eventHandler).toHaveBeenCalled()
+	})
+
+	// acorns: 左ペインの「リマインダー」一覧
+	describe('reminders list (acorns)', () => {
+		beforeEach(() => {
+			conversationsListMock.mockImplementation(() => [])
+		})
+
+		test('shows the Reminders button and switches to the reminders list', async () => {
+			const wrapper = mountComponent()
+			const button = wrapper.findAllComponents({ name: 'LeftSidebarButton' })
+				.find((b) => b.text().includes('Reminders'))
+			expect(button).toBeDefined()
+
+			await button.find('button, a').trigger('click')
+			expect(wrapper.vm.showRemindersList).toBe(true)
+			expect(wrapper.vm.showThreadsList).toBe(false)
+			expect(wrapper.text()).toContain('Reminders')
+		})
+
+		test('back to conversations resets the reminders list', async () => {
+			const wrapper = mountComponent()
+			wrapper.vm.showRemindersList = true
+			await wrapper.vm.$nextTick()
+			wrapper.vm.handleBackToConversations()
+			expect(wrapper.vm.showRemindersList).toBe(false)
+		})
 	})
 })

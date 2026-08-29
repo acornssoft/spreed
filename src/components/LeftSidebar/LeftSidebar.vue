@@ -242,7 +242,7 @@
 						</template>
 						{{ HOME_BUTTON_LABEL }}
 					</LeftSidebarButton>
-					<template v-if="showArchived || showThreadsList">
+					<template v-if="showArchived || showThreadsList || showRemindersList">
 						<LeftSidebarButton @click="handleBackToConversations">
 							<template #icon>
 								<IconArrowLeft class="bidirectional-icon" :size="20" />
@@ -250,16 +250,27 @@
 							{{ t('spreed', 'Back to conversations') }}
 						</LeftSidebarButton>
 					</template>
+					<template v-else>
+						<LeftSidebarButton
+							v-if="supportThreads && !isSearching && !isFiltered"
+							@click="handleShowThreadsList">
+							<template #icon>
+								<IconForumOutline :size="20" />
+							</template>
+							{{ t('spreed', 'Threads') }}
+						</LeftSidebarButton>
+						<!-- acorns: リマインダー一覧 -->
+						<LeftSidebarButton
+							v-if="supportReminderBookmarks && !isSearching && !isFiltered"
+							@click="handleShowRemindersList">
+							<template #icon>
+								<IconBellOutline :size="20" />
+							</template>
+							{{ t('spreed', 'Reminders') }}
+						</LeftSidebarButton>
+					</template>
 					<LeftSidebarButton
-						v-else-if="supportThreads && !showThreadsList && !isSearching && !isFiltered"
-						@click="handleShowThreadsList">
-						<template #icon>
-							<IconForumOutline :size="20" />
-						</template>
-						{{ t('spreed', 'Threads') }}
-					</LeftSidebarButton>
-					<LeftSidebarButton
-						v-if="pendingInvitationsCount && !isSearching && !showArchived && !showThreadsList"
+						v-if="pendingInvitationsCount && !isSearching && !showArchived && !showThreadsList && !showRemindersList"
 						@click="showInvitationHandler">
 						<template #icon>
 							<IconAccountMultiplePlusOutline :size="20" />
@@ -271,7 +282,7 @@
 					</LeftSidebarButton>
 				</div>
 
-				<div v-if="!isSearching" class="navigation-buttons-container" :class="{ 'hidden-visually': !showArchived && !showThreadsList }">
+				<div v-if="!isSearching" class="navigation-buttons-container" :class="{ 'hidden-visually': !showArchived && !showThreadsList && !showRemindersList }">
 					<div
 						:id="LIST_HEADING_ID"
 						class="navigation-caption"
@@ -280,6 +291,7 @@
 						{{
 							showArchived && t('spreed', 'Archived conversations')
 								|| showThreadsList && t('spreed', 'Threads')
+								|| showRemindersList && t('spreed', 'Reminders')
 								|| t('spreed', 'Conversations')
 						}}
 					</div>
@@ -299,6 +311,7 @@
 						<IconMessageBadgeOutline v-else-if="filters.length === 1 && filters[0] === 'unread'" :size="64" />
 						<IconArchiveOutline v-else-if="showArchived" :size="64" />
 						<IconForumOutline v-else-if="showThreadsList" :size="64" />
+						<IconBellOutline v-else-if="showRemindersList" :size="64" />
 						<IconMessageOutline v-else :size="64" />
 					</template>
 					<template #action>
@@ -329,6 +342,32 @@
 						</LeftSidebarButton>
 					</div>
 				</template>
+				<!-- acorns: リマインダー一覧(無期限 → 期限付き) -->
+				<template v-else-if="showRemindersList">
+					<LoadingPlaceholder v-if="!dashboardStore.upcomingRemindersInitialised" type="conversations" />
+					<ul v-else class="reminders-list" :aria-labelledby="LIST_HEADING_ID">
+						<SearchMessageItem
+							v-for="reminder in dashboardStore.sortedReminders"
+							:key="`reminder_${reminder.roomToken}_${reminder.messageId}`"
+							:messageId="reminder.messageId"
+							:title="reminder.actorDisplayName"
+							:subline="reminder.message"
+							:messageParameters="reminder.messageParameters"
+							:token="reminder.roomToken"
+							:to="{
+								name: 'conversation',
+								params: { token: reminder.roomToken },
+								hash: `#message_${reminder.messageId}`,
+							}"
+							:actorId="reminder.actorId"
+							:actorType="reminder.actorType"
+							:timestamp="reminder.reminderTimestamp"
+							isReminder />
+					</ul>
+					<div v-if="dashboardStore.sortedReminders.length >= REMINDER.LIST_LIMIT" class="navigation-caption">
+						{{ t('spreed', 'Only the first {limit} reminders are shown', { limit: REMINDER.LIST_LIMIT }) }}
+					</div>
+				</template>
 				<ConversationsListVirtual
 					v-else
 					v-show="sortedConversationsList.length > 0"
@@ -342,7 +381,7 @@
 					class="scroller"
 					@scroll="debounceHandleScroll()" />
 				<NcButton
-					v-if="!showThreadsList && lastUnreadMentionBelowViewportIndex !== null && !filters.includes('mentions')"
+					v-if="!showThreadsList && !showRemindersList && lastUnreadMentionBelowViewportIndex !== null && !filters.includes('mentions')"
 					class="unread-mention-button"
 					variant="primary"
 					@click="scrollBottomUnread">
@@ -369,8 +408,8 @@
 			<div class="navigation-bottom">
 				<div class="navigation-buttons-container">
 					<LeftSidebarButton
-						v-if="supportsArchive && !isSearching && !showArchived && !showThreadsList && archivedConversationsList.length"
-						@click="showArchived = true; showThreadsList = false">
+						v-if="supportsArchive && !isSearching && !showArchived && !showThreadsList && !showRemindersList && archivedConversationsList.length"
+						@click="showArchived = true; showThreadsList = false; showRemindersList = false">
 						<template #icon>
 							<IconArchiveOutline :size="20" />
 						</template>
@@ -419,6 +458,7 @@ import IconAccountOutline from 'vue-material-design-icons/AccountOutline.vue'
 import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
 import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconAt from 'vue-material-design-icons/At.vue'
+import IconBellOutline from 'vue-material-design-icons/BellOutline.vue'
 import IconCalendarBlankOutline from 'vue-material-design-icons/CalendarBlankOutline.vue'
 import IconChatPlusOutline from 'vue-material-design-icons/ChatPlusOutline.vue'
 import IconClockOutline from 'vue-material-design-icons/ClockOutline.vue'
@@ -435,6 +475,7 @@ import IconPhoneOutline from 'vue-material-design-icons/PhoneOutline.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconSortAlphabeticalAscending from 'vue-material-design-icons/SortAlphabeticalAscending.vue'
 import NewConversationDialog from '../NewConversationDialog/NewConversationDialog.vue'
+import SearchMessageItem from '../RightSidebar/SearchMessages/SearchMessageItem.vue'
 import ThreadItem from '../RightSidebar/Threads/ThreadItem.vue'
 import LoadingPlaceholder from '../UIShared/LoadingPlaceholder.vue'
 import SearchBox from '../UIShared/SearchBox.vue'
@@ -447,7 +488,7 @@ import OpenConversationsList from './OpenConversationsList/OpenConversationsList
 import SearchConversationsResults from './SearchConversationsResults/SearchConversationsResults.vue'
 import { useArrowNavigation } from '../../composables/useArrowNavigation.js'
 import { useGetToken } from '../../composables/useGetToken.ts'
-import { ATTENDEE, CONVERSATION } from '../../constants.ts'
+import { ATTENDEE, CONVERSATION, REMINDER } from '../../constants.ts'
 import BrowserStorage from '../../services/BrowserStorage.js'
 import {
 	getTalkConfig,
@@ -465,6 +506,7 @@ import { talkBroadcastChannel } from '../../services/talkBroadcastChannel.js'
 import { useActorStore } from '../../stores/actor.ts'
 import { useChatExtrasStore } from '../../stores/chatExtras.ts'
 import { useConversationTagsStore } from '../../stores/conversationTags.ts'
+import { useDashboardStore } from '../../stores/dashboard.ts'
 import { useFederationStore } from '../../stores/federation.ts'
 import { useSettingsStore } from '../../stores/settings.ts'
 import { useTalkHashStore } from '../../stores/talkHash.js'
@@ -488,6 +530,8 @@ const hintSipDialOut = !canModerateSipDialOut && showTalkFeatureHint(34)
 const canNoteToSelf = hasTalkFeature('local', 'note-to-self')
 const supportsArchive = hasTalkFeature('local', 'archived-conversations-v2')
 const supportThreads = hasTalkFeature('local', 'threads')
+// acorns: 無期限リマインダー(ブックマーク)と limit 付き一覧に対応したサーバか
+const supportReminderBookmarks = hasTalkFeature('local', 'acorns-reminder-no-due-date')
 const supportSortOrder = getTalkConfig('local', 'conversations', 'sort-order') !== undefined
 const supportTags = hasTalkFeature('local', 'conversation-tags')
 
@@ -523,6 +567,7 @@ export default {
 	components: {
 		LoadingPlaceholder,
 		ThreadItem,
+		SearchMessageItem,
 		CallPhoneDialog,
 		InvitationHandler,
 		NcAppNavigation,
@@ -544,6 +589,7 @@ export default {
 		// Icons
 		IconAccountMultiplePlusOutline,
 		IconAt,
+		IconBellOutline,
 		IconMessageBadgeOutline,
 		IconMessageOutline,
 		IconFilterVariant,
@@ -572,10 +618,13 @@ export default {
 
 		const showArchived = ref(false)
 		const showThreadsList = ref(false)
+		// acorns: 左ペインに自分のリマインダー一覧を出す
+		const showRemindersList = ref(false)
 		const filters = ref(BrowserStorage.getItem('filterEnabled')?.split(',') ?? [])
 
 		const federationStore = useFederationStore()
 		const talkHashStore = useTalkHashStore()
+		const dashboardStore = useDashboardStore()
 		const settingsStore = useSettingsStore()
 		const tagsStore = useConversationTagsStore()
 		const { initializeNavigation, resetNavigation } = useArrowNavigation(leftSidebar, searchBox)
@@ -599,10 +648,14 @@ export default {
 			canNoteToSelf,
 			supportsArchive,
 			supportThreads,
+			supportReminderBookmarks,
 			supportSortOrder,
 			supportTags,
 			showArchived,
 			showThreadsList,
+			showRemindersList,
+			dashboardStore,
+			REMINDER,
 			settingsStore,
 			CONVERSATION,
 			HOME_BUTTON_LABEL,
@@ -673,6 +726,9 @@ export default {
 		emptyContentLabel() {
 			if (this.showThreadsList) {
 				return t('spreed', 'No followed threads')
+			} else if (this.showRemindersList) {
+				// acorns
+				return t('spreed', 'No reminders')
 			} else if (this.isFiltered) {
 				return t('spreed', 'No matches found')
 			} else {
@@ -685,6 +741,9 @@ export default {
 				return t('spreed', 'You have no archived conversations.')
 			} else if (this.showThreadsList) {
 				return t('spreed', 'Subscribe to an existing thread or start your own.')
+			} else if (this.showRemindersList) {
+				// acorns
+				return t('spreed', 'Set a reminder on a message to find it here later.')
 			}
 			if (this.filters.length === 1 && this.filters[0] === 'mentions') {
 				return t('spreed', 'You have no unread mentions.')
@@ -761,8 +820,10 @@ export default {
 		},
 
 		showEmptyContent() {
-			return (this.conversationsInitialised && !this.sortedConversationsList.length)
+			return (this.conversationsInitialised && !this.sortedConversationsList.length && !this.showThreadsList && !this.showRemindersList)
 				|| (this.showThreadsList && this.followedThreadsInitialised && !this.followedThreads.length)
+				// acorns
+				|| (this.showRemindersList && this.dashboardStore.upcomingRemindersInitialised && !this.dashboardStore.sortedReminders.length)
 		},
 	},
 
@@ -777,6 +838,13 @@ export default {
 			if (value) {
 				// Refresh a list
 				this.chatExtrasStore.fetchFollowedThreadsList()
+			}
+		},
+
+		showRemindersList(value) {
+			if (value) {
+				// acorns: 開くたびに取り直す
+				this.dashboardStore.fetchUpcomingReminders()
 			}
 		},
 
@@ -1228,11 +1296,21 @@ export default {
 		handleShowThreadsList() {
 			this.showThreadsList = true
 			this.showArchived = false
+			this.showRemindersList = false
+			this.fallbackConversationToken = this.$route.params?.token
+		},
+
+		// acorns
+		handleShowRemindersList() {
+			this.showRemindersList = true
+			this.showThreadsList = false
+			this.showArchived = false
 			this.fallbackConversationToken = this.$route.params?.token
 		},
 
 		handleBackToConversations() {
 			this.showThreadsList = false
+			this.showRemindersList = false
 			this.showArchived = false
 			if (this.fallbackConversationToken) {
 				this.$router.push({
