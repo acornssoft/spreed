@@ -354,11 +354,7 @@
 							:subline="reminder.message"
 							:messageParameters="reminder.messageParameters"
 							:token="reminder.roomToken"
-							:to="{
-								name: 'conversation',
-								params: { token: reminder.roomToken },
-								hash: `#message_${reminder.messageId}`,
-							}"
+							:to="getReminderRoute(reminder)"
 							:actorId="reminder.actorId"
 							:actorType="reminder.actorType"
 							:timestamp="reminder.reminderTimestamp"
@@ -519,6 +515,7 @@ import {
 	shouldIncludeArchived,
 	sortConversationsList,
 } from '../../utils/conversation.ts'
+import { getReminderRoute } from '../../utils/reminder.ts'
 import { requestTabLeadership } from '../../utils/requestTabLeadership.js'
 
 const isFederationEnabled = getTalkConfig('local', 'federation', 'enabled')
@@ -655,6 +652,7 @@ export default {
 			showThreadsList,
 			showRemindersList,
 			dashboardStore,
+			getReminderRoute,
 			REMINDER,
 			settingsStore,
 			CONVERSATION,

@@ -36,6 +36,7 @@ import { useActorStore } from '../../stores/actor.ts'
 import { useDashboardStore } from '../../stores/dashboard.ts'
 import { hasUnreadMentions } from '../../utils/conversation.ts'
 import { copyConversationLinkToClipboard } from '../../utils/handleUrl.ts'
+import { getReminderRoute } from '../../utils/reminder.ts'
 
 const supportsUpcomingReminders = hasTalkFeature('local', 'upcoming-reminders')
 const canModerateSipDialOut = hasTalkFeature('local', 'sip-support-dialout')
@@ -375,11 +376,7 @@ function scrollEventCards({ direction }: { direction: 'backward' | 'forward' }) 
 									:subline="reminder.message"
 									:messageParameters="reminder.messageParameters"
 									:token="reminder.roomToken"
-									:to="{
-										name: 'conversation',
-										params: { token: reminder.roomToken },
-										hash: `#message_${reminder.messageId}`,
-									}"
+									:to="getReminderRoute(reminder)"
 									:actorId="reminder.actorId"
 									:actorType="reminder.actorType"
 									:timestamp="reminder.reminderTimestamp"

@@ -1779,6 +1779,8 @@ class ChatController extends AEnvironmentAwareOCSController {
 				'reminderTimestamp' => $reminder->getDateTime()->getTimestamp(),
 				'roomToken' => $reminder->getToken(),
 				'messageId' => $reminder->getMessageId(),
+				// acorns: スレッド返信なら root の id(messageId と異なる)。クライアントが ?threadId= を付けて右ペインで開く
+				'threadId' => $data['threadId'],
 				'actorType' => $data['actorType'],
 				'actorId' => $data['actorId'],
 				'actorDisplayName' => $data['actorDisplayName'],

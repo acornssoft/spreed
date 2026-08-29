@@ -957,6 +957,7 @@
                     "actorType",
                     "message",
                     "messageId",
+                    "threadId",
                     "messageParameters",
                     "reminderTimestamp",
                     "roomToken"
@@ -982,6 +983,11 @@
                         "type": "integer",
                         "format": "int64",
                         "description": "ID of the message the reminder is for"
+                    },
+                    "threadId": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "acorns: Thread id of the message. Equals messageId when the message is not a thread reply (requires `acorns-reminder-no-due-date`)"
                     },
                     "messageParameters": {
                         "type": "object",

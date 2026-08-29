@@ -3157,6 +3157,11 @@ export type components = {
              * @description ID of the message the reminder is for
              */
             messageId: number;
+            /**
+             * Format: int64
+             * @description acorns: Thread id of the message. Equals messageId when the message is not a thread reply (requires `acorns-reminder-no-due-date`)
+             */
+            threadId: number;
             /** @description Message parameters for `message` (see [Rich Object String](https://github.com/nextcloud/server/issues/1706)) */
             messageParameters: {
                 [key: string]: components["schemas"]["RichObjectParameter"];
