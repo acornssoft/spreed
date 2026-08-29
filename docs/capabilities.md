@@ -207,6 +207,7 @@
 * `federated-shared-items` - Whether shared items endpoints can be called in a federated conversation
 * `config => chat => style` (local) - User selected chat style (split or unified for now)
 * `acorns-chat-send-on-shift-enter` - acorns: Whether the user setting `config => chat => send-on-shift-enter` (local) is available
+* `acorns-reminder-no-due-date` (local) - acorns: Reminders with timestamp `4102444800` (2100-01-01 UTC) are "no due date" bookmarks and `GET /chat/upcoming-reminders` accepts `limit` (0 = all, default 10, max 200)
 * `config => chat => send-on-shift-enter` (local) - acorns: User setting to insert a newline with Enter and send with Shift+Enter
 * `scheduled-messages` (local) - Whether a user can schedule messages
 * `config => call => live-translation` - Whether live translation is supported in calls

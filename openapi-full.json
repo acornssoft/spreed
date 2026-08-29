@@ -1053,7 +1053,7 @@
                     "reminderTimestamp": {
                         "type": "integer",
                         "format": "int64",
-                        "description": "UNIX timestamp when the reminder should trigger"
+                        "description": "UNIX timestamp when the reminder should trigger. acorns: `4102444800` (2100-01-01 UTC) means \"no due date\" (bookmark)"
                     },
                     "roomToken": {
                         "type": "string",
@@ -11211,6 +11211,15 @@
                                 "v1"
                             ],
                             "default": "v1"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "acorns: Maximum number of reminders, 0 for all (max 200, default 10). Requires capability `acorns-reminder-no-due-date`",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
                         }
                     },
                     {

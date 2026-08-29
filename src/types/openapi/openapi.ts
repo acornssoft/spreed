@@ -2573,7 +2573,7 @@ export type components = {
             };
             /**
              * Format: int64
-             * @description UNIX timestamp when the reminder should trigger
+             * @description UNIX timestamp when the reminder should trigger. acorns: `4102444800` (2100-01-01 UTC) means "no due date" (bookmark)
              */
             reminderTimestamp: number;
             /** @description Conversation token */
@@ -6793,7 +6793,10 @@ export interface operations {
     };
     "chat-get-upcoming-reminders": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description acorns: Maximum number of reminders, 0 for all (max 200, default 10). Requires capability `acorns-reminder-no-due-date` */
+                limit?: number;
+            };
             header: {
                 /** @description Required to be true for the API request to pass */
                 "OCS-APIRequest": boolean;

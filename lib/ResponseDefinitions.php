@@ -296,7 +296,7 @@ namespace OCA\Talk;
  *     messageId: int,
  *     // Message parameters for `message` (see [Rich Object String](https://github.com/nextcloud/server/issues/1706))
  *     messageParameters: array<string, TalkRichObjectParameter>,
- *     // UNIX timestamp when the reminder should trigger
+ *     // UNIX timestamp when the reminder should trigger. acorns: `4102444800` (2100-01-01 UTC) means "no due date" (bookmark)
  *     reminderTimestamp: int,
  *     // Conversation token
  *     roomToken: string,

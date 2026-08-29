@@ -1698,6 +1698,7 @@ class ChatController extends AEnvironmentAwareOCSController {
 	 *
 	 * Required capability: `upcoming-reminders`
 	 *
+	 * @param int $limit acorns: Maximum number of reminders, 0 for all (max 200, default 10). Requires capability `acorns-reminder-no-due-date`
 	 * @return DataResponse<Http::STATUS_OK, list<TalkChatReminderUpcoming>, array{}>
 	 *
 	 * 200: Reminders returned
@@ -1706,12 +1707,17 @@ class ChatController extends AEnvironmentAwareOCSController {
 	#[ApiRoute(verb: 'GET', url: '/api/{apiVersion}/chat/upcoming-reminders', requirements: [
 		'apiVersion' => '(v1)',
 	])]
-	public function getUpcomingReminders(): DataResponse {
+	public function getUpcomingReminders(int $limit = Reminder::NUM_UPCOMING_REMINDERS): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse([], Http::STATUS_OK);
 		}
 
-		$reminders = $this->reminderService->getUpcomingReminders($this->userId, Reminder::NUM_UPCOMING_REMINDERS);
+		// acorns: 0 は全件、それ以外は 1..200 に丸める
+		if ($limit !== 0) {
+			$limit = max(1, min(200, $limit));
+		}
+
+		$reminders = $this->reminderService->getUpcomingReminders($this->userId, $limit);
 		if (empty($reminders)) {
 			return new DataResponse([], Http::STATUS_OK);
 		}
