@@ -52,9 +52,12 @@ async function removeMessageReminder(token, messageId) {
 /**
  * Fetches reminders list of all conversations
  *
+ * @param {number} [limit] acorns: maximum number of reminders (0 = all). Omit for the server default (10)
  */
-async function getUpcomingReminders() {
-	return axios.get(generateOcsUrl('apps/spreed/api/v1/chat/upcoming-reminders'))
+async function getUpcomingReminders(limit = undefined) {
+	return axios.get(generateOcsUrl('apps/spreed/api/v1/chat/upcoming-reminders'), {
+		params: limit === undefined ? {} : { limit },
+	})
 }
 
 export {

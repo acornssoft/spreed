@@ -57,6 +57,14 @@ export const CHAT_STYLE = {
 	UNIFIED: 'unified',
 } as const
 
+// acorns: 無期限(ブックマーク)リマインダー
+export const REMINDER = {
+	/** date_time に入れる固定時刻 2100-01-01 00:00:00 UTC。サーバの Reminder::NO_DUE_DATE_TIMESTAMP と同じ */
+	NO_DUE_DATE_TIMESTAMP: 4102444800,
+	/** 左ペイン一覧の取得上限(サーバの上限と同じ) */
+	LIST_LIMIT: 200,
+} as const
+
 export const CALL = {
 	RECORDING: {
 		OFF: 0,
