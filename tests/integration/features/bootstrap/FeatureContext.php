@@ -2412,6 +2412,12 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		Assert::assertEquals(array_map(function (array $expected): array {
 			$expected['messageId'] = self::$textToMessageId[$expected['messageId']];
 			$expected['roomToken'] = self::$identifierToToken[$expected['roomToken']];
+			// acorns: threadId は返信でなければ messageId と同値。表に無ければ既定値を補う
+			if (!isset($expected['threadId'])) {
+				$expected['threadId'] = $expected['messageId'];
+			} else {
+				$expected['threadId'] = self::$textToMessageId[$expected['threadId']] ?? (int)$expected['threadId'];
+			}
 			$expected['messageParameters'] = json_decode($expected['messageParameters']);
 			return $expected;
 		}, $table->getHash()), $actual);
