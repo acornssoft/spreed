@@ -21,6 +21,7 @@ import { CONVERSATION } from '../../../constants.ts'
 import { EventBus } from '../../../services/EventBus.ts'
 import { useDashboardStore } from '../../../stores/dashboard.ts'
 import { formatDateTime } from '../../../utils/formattedTime.ts'
+import { isNoDueDateReminder } from '../../../utils/reminder.ts'
 import { parseToSimpleMessage } from '../../../utils/textParse.ts'
 
 const props = withDefaults(defineProps<{
@@ -59,9 +60,15 @@ const richSubline = computed(() => {
 
 	return parseToSimpleMessage(props.subline, props.messageParameters)
 })
+// acorns: 期限なし(ブックマーク)リマインダーか
+const isNoDueDate = computed(() => props.isReminder && isNoDueDateReminder(props.timestamp))
+
 const clearReminderLabel = computed(() => {
 	if (!props.isReminder) {
 		return ''
+	}
+	if (isNoDueDate.value) {
+		return t('spreed', 'Clear reminder – no due date')
 	}
 	return t('spreed', 'Clear reminder – {timeLocale}', { timeLocale: formatDateTime(props.timestamp * 1000, 'shortWeekdayWithTime') })
 })
@@ -117,7 +124,10 @@ function handleResultClick() {
 			</NcActionButton>
 		</template>
 		<template #details>
+			<!-- acorns: 期限なしは日時ではなくラベル -->
+			<span v-if="isNoDueDate" class="search-results__date">{{ t('spreed', 'No due date') }}</span>
 			<NcDateTime
+				v-else
 				:timestamp="timestamp * 1000"
 				class="search-results__date"
 				relativeTime="short"
