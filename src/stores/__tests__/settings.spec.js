@@ -10,6 +10,7 @@ import BrowserStorage from '../../services/BrowserStorage.js'
 import { getTalkConfig } from '../../services/CapabilitiesManager.ts'
 import {
 	setAttachmentFolder,
+	setChatSendOnShiftEnter,
 	setReadStatusPrivacy,
 	setTypingStatusPrivacy,
 } from '../../services/settingsService.ts'
@@ -20,6 +21,7 @@ vi.mock('../../services/settingsService', () => ({
 	setReadStatusPrivacy: vi.fn(),
 	setTypingStatusPrivacy: vi.fn(),
 	setAttachmentFolder: vi.fn(),
+	setChatSendOnShiftEnter: vi.fn(),
 }))
 vi.mock('../../services/CapabilitiesManager', () => ({
 	getTalkConfig: vi.fn(),
@@ -112,6 +114,29 @@ describe('settingsStore', () => {
 			// Assert
 			expect(setAttachmentFolder).toHaveBeenCalledWith('/Talk-another')
 			expect(settingsStore.attachmentFolder).toBe('/Talk-another')
+		})
+	})
+
+	describe('send on Shift+Enter (acorns)', () => {
+		it('defaults to false when the server does not expose the setting', () => {
+			expect(settingsStore.chatSendOnShiftEnter).toBe(false)
+		})
+
+		it('reads the loaded value from the local talk config', () => {
+			getTalkConfig.mockImplementation((token, key1, key2) => key2 === 'send-on-shift-enter' ? true : undefined)
+			setActivePinia(createPinia())
+			const store = useSettingsStore()
+			expect(store.chatSendOnShiftEnter).toBe(true)
+		})
+
+		it('updates values correctly', async () => {
+			const response = generateOCSResponse({ payload: [] })
+			setChatSendOnShiftEnter.mockResolvedValueOnce(response)
+
+			await settingsStore.updateChatSendOnShiftEnter(true)
+
+			expect(setChatSendOnShiftEnter).toHaveBeenCalledWith(true)
+			expect(settingsStore.chatSendOnShiftEnter).toBe(true)
 		})
 	})
 })

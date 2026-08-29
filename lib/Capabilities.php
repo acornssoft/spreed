@@ -129,6 +129,7 @@ class Capabilities implements IPublicCapability {
 		'sensitive-conversations',
 		'threads',
 		'acorns-thread-read-marker',
+		'acorns-chat-send-on-shift-enter',
 		'pinned-messages',
 		'federated-shared-items',
 		'scheduled-messages',
@@ -199,6 +200,7 @@ class Capabilities implements IPublicCapability {
 			'typing-privacy',
 			'summary-threshold',
 			'style',
+			'send-on-shift-enter',
 			'matterbridge-enabled',
 		],
 		'conversations' => [
@@ -303,6 +305,7 @@ class Capabilities implements IPublicCapability {
 					'typing-privacy' => Participant::PRIVACY_PUBLIC,
 					'summary-threshold' => max(1, $this->appConfig->getAppValueInt('summary_threshold', 100)),
 					'style' => $this->talkConfig->getChatStyle($user?->getUID()),
+					'send-on-shift-enter' => $this->talkConfig->getChatSendOnShiftEnter($user?->getUID()),
 					'matterbridge-enabled' => $user instanceof IUser && $this->serverConfig->getAppValue('spreed', 'enable_matterbridge', '0') === '1',
 				],
 				'conversations' => [

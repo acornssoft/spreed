@@ -136,7 +136,9 @@
 					:placeholder="placeholderText"
 					:aria-label="placeholderText"
 					:dir="text ? 'auto' : undefined"
+					:multiline="sendOnShiftEnter"
 					@keydown.esc="handleInputEsc"
+					@keydown.shift.enter.exact="handleShiftEnter"
 					@keydown.ctrl.up="handleEditLastMessage"
 					@keydown.meta.up="handleEditLastMessage"
 					@update:modelValue="handleTyping"
@@ -380,6 +382,7 @@ import {
 	insertTextInElement,
 	selectRange,
 } from '../../utils/selectionRange.ts'
+import { shouldSubmitOnShiftEnter } from '../../utils/shouldSubmitOnShiftEnter.ts'
 import { parseSpecialSymbols } from '../../utils/textParse.ts'
 
 const supportScheduleMessages = hasTalkFeature('local', 'scheduled-messages')
@@ -718,6 +721,13 @@ export default {
 
 		supportThreads() {
 			return hasTalkFeature(this.token, 'threads')
+		},
+
+		/**
+		 * acorns: user setting - Enter inserts a newline, Shift+Enter (and Ctrl+Enter) sends
+		 */
+		sendOnShiftEnter() {
+			return this.settingsStore.chatSendOnShiftEnter
 		},
 
 		canCreateThread() {
@@ -1326,6 +1336,22 @@ export default {
 
 		blurInput() {
 			document.activeElement.blur()
+		},
+
+		/**
+		 * acorns: Shift+Enter sends when the user enabled the setting. NcRichContenteditable in multiline mode
+		 * treats Shift+Enter as a newline, so this listener runs first and cancels the default.
+		 *
+		 * @param {KeyboardEvent} event keydown event
+		 */
+		handleShiftEnter(event) {
+			const autocompleteActive = Boolean(this.$refs.richContenteditable?.tribute?.isActive)
+			if (!shouldSubmitOnShiftEnter(event, { enabled: this.sendOnShiftEnter, autocompleteActive })) {
+				return
+			}
+			event.preventDefault()
+			event.stopPropagation()
+			this.handleSubmit()
 		},
 
 		handleInputEsc() {

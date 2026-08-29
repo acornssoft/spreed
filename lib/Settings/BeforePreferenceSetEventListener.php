@@ -62,7 +62,8 @@ class BeforePreferenceSetEventListener implements IEventListener {
 		// "boolean" yes/no
 		if ($key === UserPreference::CALLS_START_WITHOUT_MEDIA
 			|| $key === UserPreference::PLAY_SOUNDS
-			|| $key === UserPreference::BLUR_VIRTUAL_BACKGROUND) {
+			|| $key === UserPreference::BLUR_VIRTUAL_BACKGROUND
+			|| $key === UserPreference::CHAT_SEND_ON_SHIFT_ENTER) {
 			return $value === 'yes' || $value === 'no';
 		}
 

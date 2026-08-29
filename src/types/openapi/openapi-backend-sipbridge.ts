@@ -254,6 +254,8 @@ export type components = {
                      * @enum {string}
                      */
                     style: "split" | "unified";
+                    /** @description acorns: Whether Enter inserts a newline and Shift+Enter sends (requires `acorns-chat-send-on-shift-enter`) */
+                    "send-on-shift-enter": boolean;
                     /** @description Whether Matterbridge is enabled */
                     "matterbridge-enabled": boolean;
                 };

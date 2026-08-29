@@ -14,6 +14,7 @@ class UserPreference {
 	public const CALLS_START_WITHOUT_MEDIA = 'calls_start_without_media';
 	public const CONVERSATIONS_LIST_STYLE = 'conversations_list_style';
 	public const CHAT_STYLE = 'chat_style';
+	public const CHAT_SEND_ON_SHIFT_ENTER = 'chat_send_on_shift_enter';
 	public const PLAY_SOUNDS = 'play_sounds';
 	public const TYPING_PRIVACY = 'typing_privacy';
 	public const READ_STATUS_PRIVACY = 'read_status_privacy';

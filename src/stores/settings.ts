@@ -17,6 +17,7 @@ import { EventBus } from '../services/EventBus.ts'
 import {
 	setAttachmentFolder,
 	setBlurVirtualBackground,
+	setChatSendOnShiftEnter,
 	setChatStyle,
 	setConversationsGroupMode,
 	setConversationsListStyle,
@@ -55,6 +56,8 @@ export const useSettingsStore = defineStore('settings', () => {
 	const blurVirtualBackgroundEnabled = ref<boolean | undefined>(getTalkConfig('local', 'call', 'blur-virtual-background'))
 	const conversationsListStyle = ref<LIST_STYLE_OPTIONS | undefined>(getTalkConfig('local', 'conversations', 'list-style'))
 	const chatStyle = ref<CHAT_STYLE_OPTIONS>(supportChatStyle ? (getTalkConfig('local', 'chat', 'style') ?? CHAT_STYLE.SPLIT) : CHAT_STYLE.UNIFIED)
+	// acorns: Enter inserts a newline, Shift+Enter sends (false when the server does not expose the setting)
+	const chatSendOnShiftEnter = ref<boolean>(getTalkConfig('local', 'chat', 'send-on-shift-enter') === true)
 	const sortOrder = ref<SORT_ORDER_OPTIONS>(getTalkConfig('local', 'conversations', 'sort-order') ?? CONVERSATION.SORT_ORDER.ACTIVITY)
 	const groupMode = ref<GROUP_MODE_OPTIONS>(getTalkConfig('local', 'conversations', 'group-mode') ?? CONVERSATION.GROUP_MODE.NONE)
 
@@ -207,6 +210,16 @@ export const useSettingsStore = defineStore('settings', () => {
 	}
 
 	/**
+	 * acorns: Update the "send on Shift+Enter" setting for the user
+	 *
+	 * @param value - new selected state
+	 */
+	async function updateChatSendOnShiftEnter(value: boolean) {
+		await setChatSendOnShiftEnter(value)
+		chatSendOnShiftEnter.value = value
+	}
+
+	/**
 	 * Update the live transcription target language id setting for the user
 	 *
 	 * @param value - new live transcription target language id
@@ -263,6 +276,7 @@ export const useSettingsStore = defineStore('settings', () => {
 		conversationsListStyle,
 		attachmentFolder,
 		chatStyle,
+		chatSendOnShiftEnter,
 		sortOrder,
 		groupMode,
 		liveTranscriptionTargetLanguageId,
@@ -285,6 +299,7 @@ export const useSettingsStore = defineStore('settings', () => {
 		updateConversationsListStyle,
 		updateAttachmentFolder,
 		updateChatStyle,
+		updateChatSendOnShiftEnter,
 		updateLiveTranscriptionTargetLanguageId,
 	}
 })

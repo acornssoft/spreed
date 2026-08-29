@@ -117,6 +117,15 @@ async function setChatStyle(value: string) {
 }
 
 /**
+ * acorns: Enter inserts a newline, Shift+Enter sends
+ *
+ * @param value - new selected state
+ */
+async function setChatSendOnShiftEnter(value: boolean) {
+	return setUserConfig('spreed', 'chat_send_on_shift_enter', value ? 'yes' : 'no')
+}
+
+/**
  *
  * @param value
  */
@@ -166,6 +175,7 @@ async function setUserConfig(appId: string, configKey: string, configValue: stri
 export {
 	setAttachmentFolder,
 	setBlurVirtualBackground,
+	setChatSendOnShiftEnter,
 	setChatStyle,
 	setConversationsGroupMode,
 	setConversationsListStyle,

@@ -177,6 +177,7 @@ export const mockedCapabilities: Capabilities = {
 				'typing-privacy': 0,
 				'summary-threshold': 100,
 				style: 'split',
+				'send-on-shift-enter': false,
 				'matterbridge-enabled': false,
 			},
 			conversations: {

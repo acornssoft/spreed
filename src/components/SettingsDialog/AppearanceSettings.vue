@@ -16,7 +16,7 @@ import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
 import MessagesGroup from '../MessagesList/MessagesGroup/MessagesGroup.vue'
 import { mockedChatMessages } from '../../__mocks__/messages.ts'
 import { CHAT_STYLE, CONVERSATION } from '../../constants.ts'
-import { getTalkConfig } from '../../services/CapabilitiesManager.ts'
+import { getTalkConfig, hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { useActorStore } from '../../stores/actor.ts'
 import { useSettingsStore } from '../../stores/settings.ts'
 import { useSoundsStore } from '../../stores/sounds.js'
@@ -24,6 +24,8 @@ import { useSoundsStore } from '../../stores/sounds.js'
 const settingsUrl = generateUrl('/settings/user/notifications')
 const supportConversationsListStyle = getTalkConfig('local', 'conversations', 'list-style') !== undefined
 const supportChatStyle = getTalkConfig('local', 'chat', 'style') !== undefined
+// acorns: server exposes the "send on Shift+Enter" user setting
+const supportSendOnShiftEnter = hasTalkFeature('local', 'acorns-chat-send-on-shift-enter')
 const isCallEnabled = getTalkConfig('local', 'call', 'enabled')
 
 const actorStore = useActorStore()
@@ -31,6 +33,7 @@ const settingsStore = useSettingsStore()
 const soundsStore = useSoundsStore()
 
 const chatAppearanceLoading = ref(false)
+const sendOnShiftEnterLoading = ref(false)
 const appearanceLoading = ref(false)
 const playSoundsLoading = ref(false)
 
@@ -86,6 +89,21 @@ async function toggleChatStyle(value: boolean) {
 }
 
 /**
+ * acorns: Change personal setting for Enter/Shift+Enter roles in the message input
+ *
+ * @param value - new value
+ */
+async function toggleSendOnShiftEnter(value: boolean) {
+	sendOnShiftEnterLoading.value = true
+	try {
+		await settingsStore.updateChatSendOnShiftEnter(value)
+	} catch (exception) {
+		showError(t('spreed', 'Error while setting personal setting'))
+	}
+	sendOnShiftEnterLoading.value = false
+}
+
+/**
  * Change personal setting for playing sounds in call
  *
  * @param value - new value
@@ -133,6 +151,15 @@ async function togglePlaySounds(value: boolean) {
 			</NcButton>
 		</NcFormBox>
 	</NcFormGroup>
+
+	<NcFormBox v-if="!isGuest && supportSendOnShiftEnter">
+		<NcFormBoxSwitch
+			:modelValue="settingsStore.chatSendOnShiftEnter"
+			:label="t('spreed', 'Insert a new line with Enter and send with Shift+Enter')"
+			:description="t('spreed', 'Ctrl+Enter always sends the message')"
+			:disabled="sendOnShiftEnterLoading"
+			@update:modelValue="toggleSendOnShiftEnter" />
+	</NcFormBox>
 
 	<NcFormBox>
 		<NcFormBoxSwitch

@@ -206,6 +206,8 @@
 * `pinned-messages` - Whether messages can be pinned
 * `federated-shared-items` - Whether shared items endpoints can be called in a federated conversation
 * `config => chat => style` (local) - User selected chat style (split or unified for now)
+* `acorns-chat-send-on-shift-enter` - acorns: Whether the user setting `config => chat => send-on-shift-enter` (local) is available
+* `config => chat => send-on-shift-enter` (local) - acorns: User setting to insert a newline with Enter and send with Shift+Enter
 * `scheduled-messages` (local) - Whether a user can schedule messages
 * `config => call => live-translation` - Whether live translation is supported in calls
 * `config => call => live-transcription-target-language-id` (local) - User defined string value with the id of the target language to use for live translations

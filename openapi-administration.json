@@ -302,6 +302,7 @@
                                     "typing-privacy",
                                     "summary-threshold",
                                     "style",
+                                    "send-on-shift-enter",
                                     "matterbridge-enabled"
                                 ],
                                 "properties": {
@@ -341,6 +342,10 @@
                                             "unified"
                                         ],
                                         "description": "Chat message rendering style (see [constants list](https://nextcloud-talk.readthedocs.io/en/latest/constants#chat-style))"
+                                    },
+                                    "send-on-shift-enter": {
+                                        "type": "boolean",
+                                        "description": "acorns: Whether Enter inserts a newline and Shift+Enter sends (requires `acorns-chat-send-on-shift-enter`)"
                                     },
                                     "matterbridge-enabled": {
                                         "type": "boolean",

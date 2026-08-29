@@ -123,6 +123,11 @@ class CapabilitiesTest extends TestCase {
 			->with(null)
 			->willReturn('split');
 
+		$this->talkConfig->expects($this->once())
+			->method('getChatSendOnShiftEnter')
+			->with(null)
+			->willReturn(false);
+
 		$this->talkConfig->expects($this->any())
 			->method('getSignalingMode')
 			->willReturn('internal');
@@ -221,6 +226,7 @@ class CapabilitiesTest extends TestCase {
 						'typing-privacy' => 0,
 						'summary-threshold' => 100,
 						'style' => 'split',
+						'send-on-shift-enter' => false,
 						'matterbridge-enabled' => false,
 					],
 					'conversations' => [
@@ -308,6 +314,11 @@ class CapabilitiesTest extends TestCase {
 			->method('getChatStyle')
 			->with('uid')
 			->willReturn('split');
+
+		$this->talkConfig->expects($this->once())
+			->method('getChatSendOnShiftEnter')
+			->with('uid')
+			->willReturn(false);
 
 		$this->talkConfig->expects($this->once())
 			->method('isNotAllowedToCreateConversations')
@@ -448,6 +459,7 @@ class CapabilitiesTest extends TestCase {
 						'typing-privacy' => 0,
 						'summary-threshold' => 100,
 						'style' => 'split',
+						'send-on-shift-enter' => false,
 						'matterbridge-enabled' => false,
 					],
 					'conversations' => [

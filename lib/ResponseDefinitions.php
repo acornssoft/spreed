@@ -835,6 +835,8 @@ namespace OCA\Talk;
  *             summary-threshold: positive-int,
  *             // Chat message rendering style (see [constants list](https://nextcloud-talk.readthedocs.io/en/latest/constants#chat-style))
  *             style: 'split'|'unified',
+ *             // acorns: Whether Enter inserts a newline and Shift+Enter sends (requires `acorns-chat-send-on-shift-enter`)
+ *             send-on-shift-enter: bool,
  *             // Whether Matterbridge is enabled
  *             matterbridge-enabled: bool,
  *         },

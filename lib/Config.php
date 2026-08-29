@@ -953,6 +953,18 @@ class Config {
 	}
 
 	/**
+	 * acorns: User setting to send with Shift+Enter and insert a newline with Enter
+	 *
+	 * @param ?string $userId
+	 */
+	public function getChatSendOnShiftEnter(?string $userId): bool {
+		if ($userId === null) {
+			return false;
+		}
+		return $this->config->getUserValue($userId, 'spreed', UserPreference::CHAT_SEND_ON_SHIFT_ENTER, 'no') === 'yes';
+	}
+
+	/**
 	 * User setting for conversations sort order
 	 *
 	 * @param ?string $userId
