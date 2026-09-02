@@ -45,6 +45,7 @@ type InitiateEditingMessagePayload = {
 	id: number | string
 	message: string
 	messageParameters: ChatMessage['messageParameters']
+	threadId?: number // acorns: 編集を始めたペインの threadId(メインは 0)
 }
 
 const FOLLOWED_THREADS_FETCH_LIMIT = 100
@@ -73,6 +74,33 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 
 	const actorStore = useActorStore()
 	const vuexStore = useStore()
+
+	/**
+	 * acorns: 入力欄の状態(下書き・引用返信・編集・スレッドタイトル)のキー。
+	 * メイン(threadId 0)は従来どおり token、スレッドペインは `token:threadId`。
+	 * 右ペインでメインとペインの NewMessage が同じ token を持つため、token だけでは
+	 * 2 つの入力欄が同期してしまう(設計書 2026-09-02 D1)
+	 *
+	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
+	 */
+	function inputKey(token: string, threadId: number = 0): string {
+		return threadId > 0 ? `${token}:${threadId}` : token
+	}
+
+	/**
+	 * acorns: token 自身と `token:*` のキーを Record から消す(purge 用)
+	 *
+	 * @param record - store record to clean up
+	 * @param token - conversation token
+	 */
+	function deleteKeysOfToken(record: Record<string, unknown>, token: string) {
+		for (const key of Object.keys(record)) {
+			if (key === token || key.startsWith(token + ':')) {
+				delete record[key]
+			}
+		}
+	}
 
 	/**
 	 * Returns whether to show pinned message banner in chat
@@ -124,19 +152,22 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * Returns a title for thread to be created
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function getThreadTitle(token: string) {
-		return threadTitle.value[token]
+	function getThreadTitle(token: string, threadId: number = 0) {
+		return threadTitle.value[inputKey(token, threadId)]
 	}
 
 	/**
 	 * Returns a message id of parent to be replied to
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function getParentIdToReply(token: string) {
-		if (parentToReply.value[token]) {
-			return parentToReply.value[token]
+	function getParentIdToReply(token: string, threadId: number = 0) {
+		const key = inputKey(token, threadId)
+		if (parentToReply.value[key]) {
+			return parentToReply.value[key]
 		}
 	}
 
@@ -144,18 +175,20 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * Returns edited message text for given conversation
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function getChatEditInput(token: string) {
-		return chatEditInput.value[token] ?? ''
+	function getChatEditInput(token: string, threadId: number = 0) {
+		return chatEditInput.value[inputKey(token, threadId)] ?? ''
 	}
 
 	/**
 	 * Returns edited message id for given conversation
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function getMessageIdToEdit(token: string): number | string | undefined {
-		return messageIdToEdit.value[token]
+	function getMessageIdToEdit(token: string, threadId: number = 0): number | string | undefined {
+		return messageIdToEdit.value[inputKey(token, threadId)]
 	}
 
 	/**
@@ -534,13 +567,15 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * Get chat input for current conversation (from store or BrowserStorage)
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 * @return The input text
 	 */
-	function getChatInput(token: string) {
-		if (!chatInput.value[token]) {
-			restoreChatInput(token)
+	function getChatInput(token: string, threadId: number = 0) {
+		const key = inputKey(token, threadId)
+		if (!chatInput.value[key]) {
+			restoreChatInput(token, threadId)
 		}
-		return chatInput.value[token] ?? ''
+		return chatInput.value[key] ?? ''
 	}
 
 	/**
@@ -548,9 +583,10 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 *
 	 * @param token - conversation token
 	 * @param title - title from input
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function setThreadTitle(token: string, title: string) {
-		threadTitle.value[token] = title
+	function setThreadTitle(token: string, title: string, threadId: number = 0) {
+		threadTitle.value[inputKey(token, threadId)] = title
 	}
 
 	/**
@@ -558,9 +594,10 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * (after posting message or dismissing the operation)
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function removeThreadTitle(token: string) {
-		delete threadTitle.value[token]
+	function removeThreadTitle(token: string, threadId: number = 0) {
+		delete threadTitle.value[inputKey(token, threadId)]
 	}
 
 	/**
@@ -569,9 +606,10 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * @param payload action payload
 	 * @param payload.token - conversation token
 	 * @param payload.id The id of message
+	 * @param payload.threadId - thread id (0 = main channel)
 	 */
-	function setParentIdToReply({ token, id }: { token: string, id: number }) {
-		parentToReply.value[token] = id
+	function setParentIdToReply({ token, id, threadId = 0 }: { token: string, id: number, threadId?: number }) {
+		parentToReply.value[inputKey(token, threadId)] = id
 	}
 
 	/**
@@ -599,21 +637,25 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * (after posting message or dismissing the operation)
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function removeParentIdToReply(token: string) {
-		delete parentToReply.value[token]
-		delete privateReply.value[token]
+	function removeParentIdToReply(token: string, threadId: number = 0) {
+		const key = inputKey(token, threadId)
+		delete parentToReply.value[key]
+		delete privateReply.value[key]
 	}
 
 	/**
 	 * Restore chat input from the browser storage and save to store
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function restoreChatInput(token: string) {
-		const storedChatInput = BrowserStorage.getItem('chatInput_' + token)
+	function restoreChatInput(token: string, threadId: number = 0) {
+		const key = inputKey(token, threadId)
+		const storedChatInput = BrowserStorage.getItem('chatInput_' + key)
 		if (storedChatInput) {
-			chatInput.value[token] = storedChatInput
+			chatInput.value[key] = storedChatInput
 		}
 	}
 
@@ -623,11 +665,13 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * @param payload action payload
 	 * @param payload.token - conversation token
 	 * @param payload.text The string to store
+	 * @param payload.threadId - thread id (0 = main channel)
 	 */
-	function setChatInput({ token, text }: { token: string, text: string }) {
+	function setChatInput({ token, text, threadId = 0 }: { token: string, text: string, threadId?: number }) {
+		const key = inputKey(token, threadId)
 		const parsedText = parseSpecialSymbols(text)
-		BrowserStorage.setItem('chatInput_' + token, parsedText)
-		chatInput.value[token] = parsedText
+		BrowserStorage.setItem('chatInput_' + key, parsedText)
+		chatInput.value[key] = parsedText
 	}
 
 	/**
@@ -637,15 +681,16 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * @param payload.token - conversation token
 	 * @param payload.text The string to store
 	 * @param payload.parameters message parameters
+	 * @param payload.threadId - thread id (0 = main channel)
 	 */
-	function setChatEditInput({ token, text, parameters = {} }: { token: string, text: string, parameters?: ChatMessage['messageParameters'] }) {
+	function setChatEditInput({ token, text, parameters = {}, threadId = 0 }: { token: string, text: string, parameters?: ChatMessage['messageParameters'], threadId?: number }) {
 		let parsedText = text
 
 		// Handle mentions and special symbols
 		parsedText = parseMentions(parsedText, parameters)
 		parsedText = parseSpecialSymbols(parsedText)
 
-		chatEditInput.value[token] = parsedText
+		chatEditInput.value[inputKey(token, threadId)] = parsedText
 	}
 
 	/**
@@ -653,29 +698,34 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 *
 	 * @param token - conversation token
 	 * @param id The id of message
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function setMessageIdToEdit(token: string, id: number | string) {
-		messageIdToEdit.value[token] = id
+	function setMessageIdToEdit(token: string, id: number | string, threadId: number = 0) {
+		messageIdToEdit.value[inputKey(token, threadId)] = id
 	}
 
 	/**
 	 * Remove a message id that is being edited to the store
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function removeMessageIdToEdit(token: string) {
-		delete chatEditInput.value[token]
-		delete messageIdToEdit.value[token]
+	function removeMessageIdToEdit(token: string, threadId: number = 0) {
+		const key = inputKey(token, threadId)
+		delete chatEditInput.value[key]
+		delete messageIdToEdit.value[key]
 	}
 
 	/**
 	 * Remove a current input value from the store for a given conversation token
 	 *
 	 * @param token - conversation token
+	 * @param threadId - thread id (0 = main channel)
 	 */
-	function removeChatInput(token: string) {
-		BrowserStorage.removeItem('chatInput_' + token)
-		delete chatInput.value[token]
+	function removeChatInput(token: string, threadId: number = 0) {
+		const key = inputKey(token, threadId)
+		BrowserStorage.removeItem('chatInput_' + key)
+		delete chatInput.value[key]
 	}
 
 	/**
@@ -686,22 +736,24 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * @param payload.id - message id
 	 * @param payload.message - message text
 	 * @param payload.messageParameters - message parameters
+	 * @param payload.threadId - thread id (0 = main channel)
 	 */
-	function initiateEditingMessage({ token, id, message, messageParameters }: InitiateEditingMessagePayload) {
-		setMessageIdToEdit(token, id)
+	function initiateEditingMessage({ token, id, message, messageParameters, threadId = 0 }: InitiateEditingMessagePayload) {
+		setMessageIdToEdit(token, id, threadId)
 		const isFileShareOnly = Object.keys(messageParameters ?? {}).some((key) => key.startsWith('file'))
 			&& message === '{file}'
 		if (isFileShareOnly) {
-			setChatEditInput({ token, text: '' })
+			setChatEditInput({ token, text: '', threadId })
 		} else {
 			setChatEditInput({
 				token,
 				text: message,
 				parameters: messageParameters,
+				threadId,
 			})
 		}
 		if (scheduledMessages.value[token]?.[id] && scheduledMessages.value[token][id].threadId === -1) {
-			setThreadTitle(token, scheduledMessages.value[token][id].threadTitle!)
+			setThreadTitle(token, scheduledMessages.value[token][id].threadTitle!, threadId)
 		}
 		EventBus.emit('editing-message')
 		EventBus.emit('focus-chat-input')
@@ -713,8 +765,18 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 	 * @param token the token of the conversation to be deleted
 	 */
 	function purgeChatExtras(token: string) {
-		removeParentIdToReply(token)
-		removeChatInput(token)
+		// acorns: スレッドペイン分(`token:*`)も消す
+		for (const key of Object.keys(chatInput.value)) {
+			if (key === token || key.startsWith(token + ':')) {
+				BrowserStorage.removeItem('chatInput_' + key)
+			}
+		}
+		deleteKeysOfToken(chatInput.value, token)
+		deleteKeysOfToken(parentToReply.value, token)
+		deleteKeysOfToken(privateReply.value, token)
+		deleteKeysOfToken(chatEditInput.value, token)
+		deleteKeysOfToken(messageIdToEdit.value, token)
+		deleteKeysOfToken(threadTitle.value, token)
 		clearThreads(token)
 	}
 

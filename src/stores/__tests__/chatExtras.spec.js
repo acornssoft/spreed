@@ -336,4 +336,78 @@ describe('chatExtrasStore', () => {
 			expect(chatExtrasStore.getThread(token, 138).attendee).toMatchObject({ lastReadMessage: 200, unreadMessages: 0 })
 		})
 	})
+
+	describe('thread-scoped input state (acorns)', () => {
+		beforeEach(() => {
+			// acorns: BrowserStorage は共有なので、前のテストの下書きが残らないように消す
+			BrowserStorage.clear()
+		})
+
+		it('keeps chat input of main view and thread pane separate', () => {
+			chatExtrasStore.setChatInput({ token: 'token-1', text: 'main draft' })
+			chatExtrasStore.setChatInput({ token: 'token-1', text: 'thread draft', threadId: 5 })
+
+			expect(chatExtrasStore.getChatInput('token-1')).toBe('main draft')
+			expect(chatExtrasStore.getChatInput('token-1', 5)).toBe('thread draft')
+			expect(BrowserStorage.getItem('chatInput_token-1')).toBe('main draft')
+			expect(BrowserStorage.getItem('chatInput_token-1:5')).toBe('thread draft')
+		})
+
+		it('removes only the addressed chat input', () => {
+			chatExtrasStore.setChatInput({ token: 'token-1', text: 'main draft' })
+			chatExtrasStore.setChatInput({ token: 'token-1', text: 'thread draft', threadId: 5 })
+
+			chatExtrasStore.removeChatInput('token-1', 5)
+
+			expect(chatExtrasStore.getChatInput('token-1')).toBe('main draft')
+			expect(chatExtrasStore.getChatInput('token-1', 5)).toBe('')
+			expect(BrowserStorage.getItem('chatInput_token-1:5')).toBe(null)
+		})
+
+		it('restores thread draft from BrowserStorage', () => {
+			BrowserStorage.setItem('chatInput_token-1:5', 'stored thread draft')
+
+			expect(chatExtrasStore.getChatInput('token-1', 5)).toBe('stored thread draft')
+			expect(chatExtrasStore.getChatInput('token-1')).toBe('')
+		})
+
+		it('keeps reply / edit / thread title state separate per thread', () => {
+			chatExtrasStore.setParentIdToReply({ token: 'token-1', id: 101 })
+			chatExtrasStore.setParentIdToReply({ token: 'token-1', id: 202, threadId: 5 })
+			chatExtrasStore.setMessageIdToEdit('token-1', 303, 5)
+			chatExtrasStore.setChatEditInput({ token: 'token-1', text: 'edit in thread', threadId: 5 })
+			chatExtrasStore.setThreadTitle('token-1', 'main title')
+
+			expect(chatExtrasStore.getParentIdToReply('token-1')).toBe(101)
+			expect(chatExtrasStore.getParentIdToReply('token-1', 5)).toBe(202)
+			expect(chatExtrasStore.getMessageIdToEdit('token-1')).toBe(undefined)
+			expect(chatExtrasStore.getMessageIdToEdit('token-1', 5)).toBe(303)
+			expect(chatExtrasStore.getChatEditInput('token-1')).toBe('')
+			expect(chatExtrasStore.getChatEditInput('token-1', 5)).toBe('edit in thread')
+			expect(chatExtrasStore.getThreadTitle('token-1')).toBe('main title')
+			expect(chatExtrasStore.getThreadTitle('token-1', 5)).toBe(undefined)
+
+			chatExtrasStore.removeParentIdToReply('token-1', 5)
+			chatExtrasStore.removeMessageIdToEdit('token-1', 5)
+			expect(chatExtrasStore.getParentIdToReply('token-1')).toBe(101)
+			expect(chatExtrasStore.getParentIdToReply('token-1', 5)).toBe(undefined)
+			expect(chatExtrasStore.getMessageIdToEdit('token-1', 5)).toBe(undefined)
+			expect(chatExtrasStore.getChatEditInput('token-1', 5)).toBe('')
+		})
+
+		it('purgeChatExtras clears main and thread-scoped state of the token', () => {
+			chatExtrasStore.setChatInput({ token: 'token-1', text: 'main draft' })
+			chatExtrasStore.setChatInput({ token: 'token-1', text: 'thread draft', threadId: 5 })
+			chatExtrasStore.setParentIdToReply({ token: 'token-1', id: 202, threadId: 5 })
+			chatExtrasStore.setChatInput({ token: 'token-2', text: 'other conversation' })
+
+			chatExtrasStore.purgeChatExtras('token-1')
+
+			expect(chatExtrasStore.chatInput['token-1']).toBe(undefined)
+			expect(chatExtrasStore.chatInput['token-1:5']).toBe(undefined)
+			expect(chatExtrasStore.parentToReply['token-1:5']).toBe(undefined)
+			expect(BrowserStorage.getItem('chatInput_token-1:5')).toBe(null)
+			expect(chatExtrasStore.getChatInput('token-2')).toBe('other conversation')
+		})
+	})
 })
