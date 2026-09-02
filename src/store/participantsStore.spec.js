@@ -33,6 +33,7 @@ import {
 import SessionStorage from '../services/SessionStorage.js'
 import { useActorStore } from '../stores/actor.ts'
 import { useGuestNameStore } from '../stores/guestName.ts'
+import piniaInstance from '../stores/pinia.ts'
 import { useSessionStore } from '../stores/session.ts'
 import { useTokenStore } from '../stores/token.ts'
 import { generateOCSErrorResponse, generateOCSResponse } from '../test-helpers.js'
@@ -1159,6 +1160,56 @@ describe('participantsStore', () => {
 
 			expect(removeAllPermissionsFromParticipant).toHaveBeenCalledWith(TOKEN, 1)
 			expect(store.getters.getParticipant(TOKEN, 1).permissions).toBe(PARTICIPANT.PERMISSIONS.CUSTOM)
+		})
+	})
+
+	describe('typing (acorns thread-aware)', () => {
+		beforeEach(() => {
+			actorStore.sessionId = 'my-session'
+			tokenStore.token = TOKEN
+			// acorns: actorIsTyping / actorTypingThreadId は module singleton の
+			// pinia を読むので、そちらの token / sessionId も揃える
+			useActorStore(piniaInstance).sessionId = 'my-session'
+			useTokenStore(piniaInstance).token = TOKEN
+		})
+
+		test('stores threadId with typing signal and filters getters by it', () => {
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-main', typing: true, threadId: 0 })
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-thread', typing: true, threadId: 5 })
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-legacy', typing: true })
+
+			expect(store.getters.externalTypingSignals(TOKEN).sort()).toEqual(['session-legacy', 'session-main', 'session-thread'])
+			expect(store.getters.externalTypingSignals(TOKEN, 0).sort()).toEqual(['session-legacy', 'session-main'])
+			expect(store.getters.externalTypingSignals(TOKEN, 5)).toEqual(['session-thread'])
+			expect(store.getters.externalTypingSignals(TOKEN, 6)).toEqual([])
+		})
+
+		test('re-signal moves a session to the new thread', () => {
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-a', typing: true, threadId: 5 })
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-a', typing: true, threadId: 0 })
+
+			expect(store.getters.externalTypingSignals(TOKEN, 5)).toEqual([])
+			expect(store.getters.externalTypingSignals(TOKEN, 0)).toEqual(['session-a'])
+		})
+
+		test('actorTypingThreadId reflects own typing state', () => {
+			expect(store.getters.actorTypingThreadId).toBe(0)
+			store.commit('setTyping', { token: TOKEN, sessionId: 'my-session', typing: true, threadId: 5 })
+			expect(store.getters.actorIsTyping).toBe(true)
+			expect(store.getters.actorTypingThreadId).toBe(5)
+			store.commit('setTyping', { token: TOKEN, sessionId: 'my-session', typing: false })
+			expect(store.getters.actorTypingThreadId).toBe(0)
+		})
+
+		test('participantsListTyping filters by threadId', () => {
+			store.dispatch('addParticipant', { token: TOKEN, participant: { attendeeId: 1, actorId: 'alice', actorType: 'users', sessionIds: ['session-main'], displayName: 'Alice' } })
+			store.dispatch('addParticipant', { token: TOKEN, participant: { attendeeId: 2, actorId: 'bob', actorType: 'users', sessionIds: ['session-thread'], displayName: 'Bob' } })
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-main', typing: true, threadId: 0 })
+			store.commit('setTyping', { token: TOKEN, sessionId: 'session-thread', typing: true, threadId: 5 })
+
+			expect(store.getters.participantsListTyping(TOKEN, 0).map((p) => p.actorId)).toEqual(['alice'])
+			expect(store.getters.participantsListTyping(TOKEN, 5).map((p) => p.actorId)).toEqual(['bob'])
+			expect(store.getters.participantsListTyping(TOKEN).map((p) => p.actorId).sort()).toEqual(['alice', 'bob'])
 		})
 	})
 })

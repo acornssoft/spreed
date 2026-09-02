@@ -66,7 +66,7 @@ SignalingTypingHandler.prototype = {
 		}
 	},
 
-	setTyping(typing) {
+	setTyping(typing, threadId = 0) {
 		if (this._destroyed) {
 			return
 		}
@@ -89,6 +89,7 @@ SignalingTypingHandler.prototype = {
 			this._signaling.emit('message', {
 				type: typing ? 'startedTyping' : 'stoppedTyping',
 				to: participant.signalingSessionId,
+				threadId, // acorns: 入力中のスレッド(0 = チャンネル)。旧クライアントは無視する
 			})
 		}
 
@@ -96,6 +97,7 @@ SignalingTypingHandler.prototype = {
 			token: this._tokenStore.token,
 			sessionId: this._actorStore.sessionId,
 			typing,
+			threadId,
 		})
 	},
 
@@ -113,6 +115,7 @@ SignalingTypingHandler.prototype = {
 			token: this._tokenStore.token,
 			sessionId: participant.nextcloudSessionId,
 			typing: data.type === 'startedTyping',
+			threadId: Number(data.threadId) || 0, // acorns: 無し・不正は 0(旧クライアント)
 		})
 	},
 
@@ -121,10 +124,13 @@ SignalingTypingHandler.prototype = {
 			return
 		}
 
+		const threadId = this._store.getters.actorTypingThreadId // acorns: 自分の入力中スレッドで再送
+
 		for (const participant of participants) {
 			this._signaling.emit('message', {
 				type: 'startedTyping',
 				to: participant.signalingSessionId,
+				threadId,
 			})
 		}
 	},

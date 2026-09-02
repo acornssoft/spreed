@@ -284,9 +284,10 @@ async function setPermissions(token, attendeeId, method = 'set', permission) {
  * Sets whether the current participant is typing or not.
  *
  * @param {boolean} typing whether the current participant is typing.
+ * @param {number} threadId acorns: the thread the participant is typing in (0 = channel).
  */
-function setTyping(typing) {
-	signalingSetTyping(typing)
+function setTyping(typing, threadId = 0) {
+	signalingSetTyping(typing, threadId)
 }
 
 export {

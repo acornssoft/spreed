@@ -137,12 +137,26 @@ const getters = {
 	 * @param {object} state - the state object.
 	 * @return {Array} the typing session IDs array.
 	 */
-	externalTypingSignals: (state) => (token) => {
+	externalTypingSignals: (state) => (token, threadId) => {
 		if (!state.typing[token]) {
 			return []
 		}
 		const actorStore = useActorStore()
-		return Object.keys(state.typing[token]).filter((sessionId) => actorStore.sessionId !== sessionId)
+		return Object.keys(state.typing[token])
+			.filter((sessionId) => actorStore.sessionId !== sessionId)
+			// acorns: threadId 指定時はそのスレッド(0 = チャンネル)で入力中の分だけ。旧クライアントは threadId 無し → 0
+			.filter((sessionId) => threadId === undefined || (state.typing[token][sessionId].threadId ?? 0) === threadId)
+	},
+
+	/**
+	 * acorns: 自分が入力中のスレッド id(0 = チャンネル、入力中でなければ 0)。途中参加者への再送に使う
+	 *
+	 * @param {object} state - the state object.
+	 * @return {number} the threadId the actor is currently typing in.
+	 */
+	actorTypingThreadId: (state) => {
+		const actorStore = useActorStore()
+		return state.typing[tokenStore.token]?.[actorStore.sessionId]?.threadId ?? 0
 	},
 
 	/**
@@ -167,15 +181,15 @@ const getters = {
 	 * @param {object} getters - the getters object.
 	 * @return {Array} the participants array (for registered users only).
 	 */
-	participantsListTyping: (state, getters) => (token) => {
-		if (!getters.externalTypingSignals(token).length) {
+	participantsListTyping: (state, getters) => (token, threadId) => {
+		if (!getters.externalTypingSignals(token, threadId).length) {
 			return []
 		}
 
 		const actorStore = useActorStore()
 		return getters.participantsList(token).filter((attendee) => {
 			// Check if participant's sessionId matches with any of sessionIds from signaling...
-			return getters.externalTypingSignals(token).some((sessionId) => attendee.sessionIds.includes(sessionId))
+			return getters.externalTypingSignals(token, threadId).some((sessionId) => attendee.sessionIds.includes(sessionId))
 				// ... and it's not the participant with same actorType and actorId as yourself
 				&& !actorStore.checkIfSelfIsActor(attendee)
 		})
@@ -412,8 +426,9 @@ const mutations = {
 	 *        participant.
 	 * @param {boolean} data.typing - whether the participant is typing or not.
 	 * @param {number} data.expirationTimeout - id of timeout to watch for received signal expiration.
+	 * @param {number} data.threadId - acorns: the thread the participant is typing in (0 = channel).
 	 */
-	setTyping(state, { token, sessionId, typing, expirationTimeout }) {
+	setTyping(state, { token, sessionId, typing, expirationTimeout, threadId = 0 }) {
 		if (!state.typing[token]) {
 			state.typing[token] = {}
 		}
@@ -423,7 +438,7 @@ const mutations = {
 		}
 
 		if (typing) {
-			state.typing[token][sessionId] = { expirationTimeout }
+			state.typing[token][sessionId] = { expirationTimeout, threadId } // acorns: threadId を持つ
 		} else {
 			delete state.typing[token][sessionId]
 		}
@@ -1221,15 +1236,15 @@ const actions = {
 		context.commit('updateParticipant', { token, attendeeId, updatedData })
 	},
 
-	async sendTypingSignal(context, { typing }) {
+	async sendTypingSignal(context, { typing, threadId = 0 }) {
 		if (!tokenStore.currentConversationIsJoined) {
 			return
 		}
 
-		await setTyping(typing)
+		await setTyping(typing, threadId)
 	},
 
-	async setTyping(context, { token, sessionId, typing }) {
+	async setTyping(context, { token, sessionId, typing, threadId = 0 }) {
 		if (!typing) {
 			context.commit('setTyping', { token, sessionId, typing: false })
 		} else {
@@ -1237,7 +1252,7 @@ const actions = {
 				// If updated 'typing' signal doesn't come in last 15s, remove it from store
 				context.commit('setTyping', { token, sessionId, typing: false })
 			}, 15000)
-			context.commit('setTyping', { token, sessionId, typing: true, expirationTimeout })
+			context.commit('setTyping', { token, sessionId, typing: true, expirationTimeout, threadId })
 		}
 	},
 

@@ -543,9 +543,10 @@ async function signalingSendCallMessage(data) {
  * Sets whether the current participant is typing.
  *
  * @param {boolean} typing whether the current participant is typing.
+ * @param {number} threadId acorns: the thread the participant is typing in (0 = channel).
  */
-function signalingSetTyping(typing) {
-	signalingTypingHandler?.setTyping(typing)
+function signalingSetTyping(typing, threadId = 0) {
+	signalingTypingHandler?.setTyping(typing, threadId)
 }
 
 export {
