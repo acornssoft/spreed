@@ -177,7 +177,7 @@ describe('SignalingTypingHandler', () => {
 
 			expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 			expect(signaling.emit).toHaveBeenCalledTimes(1)
-			expect(signaling.emit).toHaveBeenCalledWith('message', { type: 'startedTyping', to: 'user1SignalingSessionId' })
+			expect(signaling.emit).toHaveBeenCalledWith('message', { type: 'startedTyping', to: 'user1SignalingSessionId', threadId: 0 })
 		})
 
 		test('when there are other participants in the room', () => {
@@ -200,8 +200,8 @@ describe('SignalingTypingHandler', () => {
 
 			expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 			expect(signaling.emit).toHaveBeenCalledTimes(2)
-			expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId' })
-			expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId' })
+			expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId', threadId: 0 })
+			expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId', threadId: 0 })
 		})
 
 		test('when signaling is not set yet', () => {
@@ -275,8 +275,8 @@ describe('SignalingTypingHandler', () => {
 
 			expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 			expect(signaling.emit).toHaveBeenCalledTimes(2)
-			expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId' })
-			expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'stoppedTyping', to: 'user1SignalingSessionId' })
+			expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId', threadId: 0 })
+			expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'stoppedTyping', to: 'user1SignalingSessionId', threadId: 0 })
 		})
 
 		test('when there are other participants in the room', () => {
@@ -300,10 +300,10 @@ describe('SignalingTypingHandler', () => {
 
 			expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 			expect(signaling.emit).toHaveBeenCalledTimes(4)
-			expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId' })
-			expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId' })
-			expect(signaling.emit).toHaveBeenNthCalledWith(3, 'message', { type: 'stoppedTyping', to: 'user1SignalingSessionId' })
-			expect(signaling.emit).toHaveBeenNthCalledWith(4, 'message', { type: 'stoppedTyping', to: 'guest1SignalingSessionId' })
+			expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId', threadId: 0 })
+			expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId', threadId: 0 })
+			expect(signaling.emit).toHaveBeenNthCalledWith(3, 'message', { type: 'stoppedTyping', to: 'user1SignalingSessionId', threadId: 0 })
+			expect(signaling.emit).toHaveBeenNthCalledWith(4, 'message', { type: 'stoppedTyping', to: 'guest1SignalingSessionId', threadId: 0 })
 		})
 
 		test('when signaling is not set yet', () => {
@@ -476,7 +476,7 @@ describe('SignalingTypingHandler', () => {
 
 		expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 		expect(signaling.emit).toHaveBeenCalledTimes(1)
-		expect(signaling.emit).toHaveBeenCalledWith('message', { type: 'startedTyping', to: 'user1SignalingSessionId' })
+		expect(signaling.emit).toHaveBeenCalledWith('message', { type: 'startedTyping', to: 'user1SignalingSessionId', threadId: 0 })
 	})
 
 	test('other participants join when current participant is typing', () => {
@@ -503,8 +503,8 @@ describe('SignalingTypingHandler', () => {
 
 		expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 		expect(signaling.emit).toHaveBeenCalledTimes(2)
-		expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId' })
-		expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId' })
+		expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId', threadId: 0 })
+		expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'startedTyping', to: 'user1SignalingSessionId', threadId: 0 })
 	})
 
 	test('other participants join when current participant is no longer typing', () => {
@@ -532,8 +532,8 @@ describe('SignalingTypingHandler', () => {
 
 		expect(store.getters.participantsListTyping(TOKEN)).toEqual([])
 		expect(signaling.emit).toHaveBeenCalledTimes(2)
-		expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId' })
-		expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'stoppedTyping', to: 'guest1SignalingSessionId' })
+		expect(signaling.emit).toHaveBeenNthCalledWith(1, 'message', { type: 'startedTyping', to: 'guest1SignalingSessionId', threadId: 0 })
+		expect(signaling.emit).toHaveBeenNthCalledWith(2, 'message', { type: 'stoppedTyping', to: 'guest1SignalingSessionId', threadId: 0 })
 	})
 
 	test('other participants leave when they were typing', () => {
