@@ -163,7 +163,7 @@ export default {
 		},
 
 		isDragAndDropBlocked() {
-			return this.chatExtrasStore.getMessageIdToEdit(this.token) !== undefined || !this.canUploadFiles
+			return this.chatExtrasStore.getMessageIdToEdit(this.token, this.threadId) !== undefined || !this.canUploadFiles
 				|| this.chatExtrasStore.scheduleMessageTime
 		},
 

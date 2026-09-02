@@ -16,6 +16,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconClose from 'vue-material-design-icons/Close.vue'
 import IconPencilOutline from 'vue-material-design-icons/PencilOutline.vue'
 import AvatarWrapper from './AvatarWrapper/AvatarWrapper.vue'
+import { useGetThreadId } from '../composables/useGetThreadId.ts'
 import { useGetToken } from '../composables/useGetToken.ts'
 import { useMessageInfo } from '../composables/useMessageInfo.ts'
 import { AVATAR } from '../constants.ts'
@@ -41,6 +42,7 @@ const store = useStore()
 const actorStore = useActorStore()
 const chatExtrasStore = useChatExtrasStore()
 const currentToken = useGetToken()
+const threadId = useGetThreadId() // acorns: このクォートが載っている入力欄の threadId
 
 const isPrivateReply = computed(() => {
 	if (isExistingMessage(message) && (message.metaData?.replyToConversationToken ?? '').length > 0) {
@@ -173,11 +175,11 @@ function handleAbort() {
 	}
 
 	if (editMessage) {
-		chatExtrasStore.removeMessageIdToEdit(message.token)
+		chatExtrasStore.removeMessageIdToEdit(message.token, threadId.value)
 	} else {
-		chatExtrasStore.removeParentIdToReply(currentToken.value)
+		chatExtrasStore.removeParentIdToReply(currentToken.value, threadId.value)
 	}
-	EventBus.emit('focus-chat-input')
+	EventBus.emit('focus-chat-input', { threadId: threadId.value })
 }
 
 /**

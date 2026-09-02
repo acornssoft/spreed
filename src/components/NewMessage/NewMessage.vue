@@ -603,12 +603,12 @@ export default {
 		},
 
 		parentMessage() {
-			const parentId = this.chatExtrasStore.getParentIdToReply(this.token)
+			const parentId = this.chatExtrasStore.getParentIdToReply(this.token, this.threadId)
 			return parentId && this.$store.getters.message(this.parentToken, parentId)
 		},
 
 		messageToEdit() {
-			const messageToEditId = this.chatExtrasStore.getMessageIdToEdit(this.token)
+			const messageToEditId = this.chatExtrasStore.getMessageIdToEdit(this.token, this.threadId)
 			if (!messageToEditId) {
 				return undefined
 			}
@@ -696,11 +696,11 @@ export default {
 		},
 
 		chatInput() {
-			return this.chatExtrasStore.getChatInput(this.token)
+			return this.chatExtrasStore.getChatInput(this.token, this.threadId)
 		},
 
 		chatEditInput() {
-			return this.chatExtrasStore.getChatEditInput(this.token)
+			return this.chatExtrasStore.getChatEditInput(this.token, this.threadId)
 		},
 
 		showMentionEditHint() {
@@ -737,11 +737,11 @@ export default {
 
 		threadTitle: {
 			get() {
-				return this.chatExtrasStore.getThreadTitle(this.token)
+				return this.chatExtrasStore.getThreadTitle(this.token, this.threadId)
 			},
 
 			set(value) {
-				this.chatExtrasStore.setThreadTitle(this.token, value)
+				this.chatExtrasStore.setThreadTitle(this.token, value, this.threadId)
 			},
 		},
 
@@ -821,11 +821,11 @@ export default {
 				return
 			} else if (newValue) {
 				// Enter editing mode or editing another message
-				this.text = this.chatExtrasStore.getChatEditInput(this.token)
+				this.text = this.chatExtrasStore.getChatEditInput(this.token, this.threadId)
 
 				// Clear thread title when editing a message (unless it's a scheduled thread)
 				if (newValue.threadId !== -1) {
-					this.chatExtrasStore.removeThreadTitle(this.token)
+					this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
 				}
 
 				if (this.showScheduledMessages) {
@@ -834,7 +834,7 @@ export default {
 				}
 
 				if (this.parentMessage) {
-					this.chatExtrasStore.removeParentIdToReply(this.token)
+					this.chatExtrasStore.removeParentIdToReply(this.token, this.threadId)
 				}
 			} else {
 				// Leaving editing mode
@@ -853,9 +853,9 @@ export default {
 
 		parentMessage(newValue) {
 			if (newValue) {
-				this.chatExtrasStore.removeThreadTitle(this.token)
+				this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
 				if (this.messageToEdit) {
-					this.chatExtrasStore.removeMessageIdToEdit(this.token)
+					this.chatExtrasStore.removeMessageIdToEdit(this.token, this.threadId)
 				}
 			}
 		},
@@ -982,11 +982,12 @@ export default {
 					token: this.token,
 					text,
 					parameters: this.messageToEdit.messageParameters,
+					threadId: this.threadId,
 				})
 			} else if (text && text !== this.chatInput) {
-				this.chatExtrasStore.setChatInput({ token: this.token, text })
+				this.chatExtrasStore.setChatInput({ token: this.token, text, threadId: this.threadId })
 			} else if (!text && this.chatInput) {
-				this.chatExtrasStore.removeChatInput(this.token)
+				this.chatExtrasStore.removeChatInput(this.token, this.threadId)
 			}
 		},
 
@@ -1051,7 +1052,7 @@ export default {
 
 			// Clear input content from store
 			this.debouncedUpdateChatInput.clear()
-			this.chatExtrasStore.removeChatInput(this.token)
+			this.chatExtrasStore.removeChatInput(this.token, this.threadId)
 
 			this.chatExtrasStore.setShowScheduledMessages(false)
 
@@ -1082,14 +1083,14 @@ export default {
 
 				const temporaryMessage = this.createTemporaryMessage(temporaryMessagePayload)
 				this.text = ''
-				this.chatExtrasStore.removeThreadTitle(this.token)
+				this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
 
 				// Reset the hash from focused message id (but keep the thread id)
 				this.$router.replace({ query: this.$route.query, hash: '' })
 				// Scrolls the message list to the last added message
 				EventBus.emit('scroll-chat-to-bottom', { smooth: true, force: true, threadId: this.threadId })
 				// Also remove the message to be replied for this conversation
-				this.chatExtrasStore.removeParentIdToReply(this.token)
+				this.chatExtrasStore.removeParentIdToReply(this.token, this.threadId)
 
 				this.dialog
 					? await this.submitMessage(this.token, temporaryMessage)
@@ -1142,8 +1143,8 @@ export default {
 					})
 				}
 				EventBus.emit('focus-message', { messageId: this.messageToEdit.id })
-				this.chatExtrasStore.removeMessageIdToEdit(this.token)
-				this.chatExtrasStore.removeThreadTitle(this.token)
+				this.chatExtrasStore.removeMessageIdToEdit(this.token, this.threadId)
+				this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
 				this.chatExtrasStore.setScheduleMessageTime(null)
 				this.silentChat = false
 				this.resetTypingIndicator()
@@ -1163,7 +1164,11 @@ export default {
 			return new Promise((resolve) => setTimeout(resolve, ms))
 		},
 
-		handleRetryMessage(id) {
+		handleRetryMessage({ id, threadId }) {
+			// acorns: メインとペインの両方が listen しているので、宛先の入力欄だけが取り込む
+			if (threadId !== this.threadId) {
+				return
+			}
 			if (this.text === '') {
 				const temporaryMessage = this.$store.getters.message(this.token, id)
 				if (temporaryMessage) {
@@ -1174,6 +1179,7 @@ export default {
 						this.chatExtrasStore.setParentIdToReply({
 							token: this.token,
 							id: temporaryMessage.parent.id,
+							threadId: this.threadId, // acorns
 						})
 					}
 
@@ -1184,15 +1190,15 @@ export default {
 
 		setCreateThread(value) {
 			if (value) {
-				this.chatExtrasStore.setThreadTitle(this.token, '')
-				this.chatExtrasStore.removeParentIdToReply(this.token)
-				this.chatExtrasStore.removeMessageIdToEdit(this.token)
+				this.chatExtrasStore.setThreadTitle(this.token, '', this.threadId)
+				this.chatExtrasStore.removeParentIdToReply(this.token, this.threadId)
+				this.chatExtrasStore.removeMessageIdToEdit(this.token, this.threadId)
 				this.$nextTick(() => {
 					this.threadTitleInputRef.focus()
 				})
 			} else {
-				this.chatExtrasStore.removeThreadTitle(this.token)
-				this.chatExtrasStore.removeMessageIdToEdit(this.token)
+				this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
+				this.chatExtrasStore.removeMessageIdToEdit(this.token, this.threadId)
 				this.chatExtrasStore.setScheduleMessageTime(null)
 			}
 		},
@@ -1222,7 +1228,7 @@ export default {
 					this.threadId ? { threadId: this.threadId } : {},
 					this.parentMessage?.id ? { replyTo: this.parentMessage?.id } : {},
 				))
-				this.chatExtrasStore.removeParentIdToReply(this.token)
+				this.chatExtrasStore.removeParentIdToReply(this.token, this.threadId)
 
 				this.uploadStore.shareFile({ token: this.token, path, talkMetaData })
 			})
@@ -1325,7 +1331,12 @@ export default {
 			this.isRecordingAudio = payload
 		},
 
-		async focusInput() {
+		async focusInput(payload) {
+			// acorns: メインとペインの両方が listen しているので、宛先が明示されたイベントは自分向けだけ受ける。
+			// payload が無い(ホットキー c・入室時 watcher・自コンポーネント内呼び出し)ときは従来どおり全員が反応する
+			if (payload && typeof payload === 'object' && payload.threadId !== undefined && payload.threadId !== this.threadId) {
+				return
+			}
 			if (this.isMobileDevice) {
 				return
 			}
@@ -1392,6 +1403,7 @@ export default {
 				id: lastMessageByCurrentUser.id,
 				message: lastMessageByCurrentUser.message,
 				messageParameters: lastMessageByCurrentUser.messageParameters,
+				threadId: this.threadId, // acorns
 			})
 		},
 
@@ -1414,8 +1426,8 @@ export default {
 		},
 
 		handleAbortEdit() {
-			this.chatExtrasStore.removeMessageIdToEdit(this.token)
-			this.chatExtrasStore.removeThreadTitle(this.token)
+			this.chatExtrasStore.removeMessageIdToEdit(this.token, this.threadId)
+			this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
 			this.chatExtrasStore.setScheduleMessageTime(null)
 			this.silentChat = false
 		},
@@ -1467,12 +1479,12 @@ export default {
 
 					// Clear input content from store
 					this.text = ''
-					this.chatExtrasStore.removeThreadTitle(this.token)
+					this.chatExtrasStore.removeThreadTitle(this.token, this.threadId)
 					this.chatExtrasStore.setScheduleMessageTime(null)
 					this.silentChat = false
-					this.chatExtrasStore.removeParentIdToReply(this.token)
+					this.chatExtrasStore.removeParentIdToReply(this.token, this.threadId)
 					this.debouncedUpdateChatInput.clear()
-					this.chatExtrasStore.removeChatInput(this.token)
+					this.chatExtrasStore.removeChatInput(this.token, this.threadId)
 					this.resetTypingIndicator()
 					showSuccess(t('spreed', 'Message was successfully scheduled'))
 					this.isScheduling = false

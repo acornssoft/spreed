@@ -72,6 +72,8 @@ describe('MessageItem.vue', () => {
 
 		injected = {
 			getMessagesListScroller: vi.fn(),
+			// acorns: useGetThreadId() が読む provide。メイン(0)相当
+			'chatView:threadId': ref(0),
 		}
 
 		actorStore.actorId = 'user-id-1'
@@ -590,7 +592,7 @@ describe('MessageItem.vue', () => {
 
 			await reloadNcButton.vm.$emit('click')
 
-			expect(retryEvent).toHaveBeenCalledWith(123)
+			expect(retryEvent).toHaveBeenCalledWith({ id: 123, threadId: 0 })
 		})
 
 		test('displays the message already with a spinner while sending it', () => {

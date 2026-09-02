@@ -369,8 +369,9 @@ export default {
 			this.chatExtrasStore.setParentIdToReply({
 				token: this.message.token,
 				id: this.message.id,
+				threadId: this.threadId, // acorns: 自分のペインの入力欄に付ける
 			})
-			EventBus.emit('focus-chat-input')
+			EventBus.emit('focus-chat-input', { threadId: this.threadId })
 		},
 
 		handleEdit() {
@@ -379,6 +380,7 @@ export default {
 				id: this.message.id,
 				message: this.message.message,
 				messageParameters: this.message.messageParameters,
+				threadId: this.threadId, // acorns
 			})
 		},
 

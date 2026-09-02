@@ -545,8 +545,8 @@ export default {
 						uploadId: this.$store.getters.message(this.message.token, this.message.id)?.uploadId,
 					})
 				} else {
-					EventBus.emit('retry-message', this.message.id)
-					EventBus.emit('focus-chat-input')
+					EventBus.emit('retry-message', { id: this.message.id, threadId: this.threadId })
+					EventBus.emit('focus-chat-input', { threadId: this.threadId })
 				}
 			}
 		},

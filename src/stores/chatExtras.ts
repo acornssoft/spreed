@@ -756,7 +756,7 @@ export const useChatExtrasStore = defineStore('chatExtras', () => {
 			setThreadTitle(token, scheduledMessages.value[token][id].threadTitle!, threadId)
 		}
 		EventBus.emit('editing-message')
-		EventBus.emit('focus-chat-input')
+		EventBus.emit('focus-chat-input', { threadId }) // acorns: 編集を始めたペインだけ focus
 	}
 
 	/**

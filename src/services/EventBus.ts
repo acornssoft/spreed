@@ -28,7 +28,8 @@ export type Events = {
 	'duplicate-session-detected': void
 	'editing-message': void
 	'editing-message-processing': { messageId: number, value: boolean }
-	'focus-chat-input': void
+	// acorns: threadId 付きは一致する NewMessage だけ focus。無し(ホットキー c・入室時)は従来どおり全員
+	'focus-chat-input': { threadId?: number } | void
 	'focus-message': { messageId: number | string, smooth?: boolean, highlight?: boolean, threadId?: number }
 	'forbidden-route': { error: string }
 	'joined-conversation': { token: string }
@@ -36,7 +37,8 @@ export type Events = {
 	'poll-editor-open': { token: string, id: number | null, fromDrafts: boolean, action?: string, selector?: string, threadId?: number }
 	'refresh-peer-list': void
 	'refresh-talk-dashboard': void
-	'retry-message': number
+	// acorns: 一致する threadId の NewMessage だけが失敗メッセージ本文を取り込む
+	'retry-message': { id: number, threadId: number }
 	'route-change': { from: RouteLocation, to: RouteLocation }
 	'set-context-id-to-bottom': { threadId?: number } | void
 	'scroll-chat-to-bottom': { smooth?: boolean, force?: boolean, threadId?: number }
