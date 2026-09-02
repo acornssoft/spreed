@@ -9,7 +9,8 @@
 		:class="{ 'wrapper--narrow': isSidebar }">
 		<NewMessageTypingIndicator
 			v-if="showTypingStatus"
-			:token="token" />
+			:token="token"
+			:threadId="threadId" />
 
 		<!--native file picker, hidden -->
 		<input
@@ -947,12 +948,12 @@ export default {
 
 			if (!this.typingInterval) {
 				// Send first signal after first keystroke
-				this.$store.dispatch('sendTypingSignal', { typing: true })
+				this.$store.dispatch('sendTypingSignal', { typing: true, threadId: this.threadId }) // acorns: 自分のペインの threadId を載せる
 
 				// Continuously send signals with 10s interval if still typing
 				this.typingInterval = setInterval(() => {
 					if (this.wasTypingWithinInterval) {
-						this.$store.dispatch('sendTypingSignal', { typing: true })
+						this.$store.dispatch('sendTypingSignal', { typing: true, threadId: this.threadId }) // acorns
 						this.wasTypingWithinInterval = false
 					} else {
 						this.clearTypingInterval()
@@ -970,7 +971,7 @@ export default {
 		},
 
 		resetTypingIndicator() {
-			this.$store.dispatch('sendTypingSignal', { typing: false })
+			this.$store.dispatch('sendTypingSignal', { typing: false, threadId: this.threadId }) // acorns
 			if (this.typingInterval) {
 				this.clearTypingInterval()
 			}

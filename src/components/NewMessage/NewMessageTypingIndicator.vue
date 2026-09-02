@@ -46,6 +46,14 @@ export default {
 			type: String,
 			required: true,
 		},
+
+		/**
+		 * acorns: この入力欄が属するスレッド(0 = チャンネル)。一致する入力中だけ表示する
+		 */
+		threadId: {
+			type: Number,
+			default: 0,
+		},
 	},
 
 	setup() {
@@ -63,11 +71,11 @@ export default {
 		},
 
 		externalTypingSignals() {
-			return this.$store.getters.externalTypingSignals(this.token)
+			return this.$store.getters.externalTypingSignals(this.token, this.threadId)
 		},
 
 		typingParticipants() {
-			return this.$store.getters.participantsListTyping(this.token)
+			return this.$store.getters.participantsListTyping(this.token, this.threadId)
 		},
 
 		visibleParticipants() {
