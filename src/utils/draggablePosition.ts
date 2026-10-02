@@ -9,7 +9,10 @@ export type Point = { x: number, y: number }
 export type Size = { width: number, height: number }
 
 const CLAMP_MARGIN = 8
-const DEFAULT_MARGIN = 16
+const DEFAULT_MARGINS = { right: 16, bottom: 96 } as const
+
+/** 既定位置の余白(入力欄を避けるため右と下で分ける) */
+export type DefaultMargins = { right: number, bottom: number }
 
 /**
  * 箱が範囲の中に収まるよう位置を補正する
@@ -29,14 +32,28 @@ export function clampPosition(position: Point, box: Size, bounds: Size, margin =
 }
 
 /**
- * 初期位置(右下)
+ * 初期位置(右下)。入力欄を避けるため右と下で違う余白を使う
  *
  * @param box 箱の大きさ
  * @param bounds 動かせる範囲の大きさ
- * @param margin 範囲の縁からの余白
+ * @param margins 範囲の縁からの余白(右・下)
  */
-export function defaultPosition(box: Size, bounds: Size, margin = DEFAULT_MARGIN): Point {
-	return clampPosition({ x: bounds.width - box.width - margin, y: bounds.height - box.height - margin }, box, bounds)
+export function defaultPosition(box: Size, bounds: Size, margins: DefaultMargins = DEFAULT_MARGINS): Point {
+	return clampPosition({ x: bounds.width - box.width - margins.right, y: bounds.height - box.height - margins.bottom }, box, bounds)
+}
+
+/**
+ * 基準の大きさが変わったときの位置。まだ動かしていなければ既定位置に置き直し、
+ * 動かした後は範囲内に補正するだけ(副作用なし)
+ *
+ * @param options 設定
+ * @param options.position 今の位置
+ * @param options.userMoved 利用者が動かしたか(保存済みの位置を読んだ・ドラッグで動かした)
+ * @param options.box 箱の大きさ
+ * @param options.bounds 動かせる範囲の大きさ
+ */
+export function positionAfterResize({ position, userMoved, box, bounds }: { position: Point, userMoved: boolean, box: Size, bounds: Size }): Point {
+	return userMoved ? clampPosition(position, box, bounds) : defaultPosition(box, bounds)
 }
 
 /**

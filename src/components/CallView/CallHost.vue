@@ -10,7 +10,7 @@
 import type { Conversation } from '../../types/index.ts'
 
 import { t } from '@nextcloud/l10n'
-import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import CallView from './CallView.vue'
@@ -49,10 +49,17 @@ onMounted(() => {
 	bounds.value = host.value?.parentElement ?? null
 })
 
-const { position, onPointerDown } = useDraggablePosition({
+const { position, onPointerDown, remeasure } = useDraggablePosition({
 	box: MINI_BOX,
 	bounds,
 	storageKey: 'callMiniViewPosition',
+})
+
+// acorns: 小窓が初めて出たときに基準の大きさを測り直す(マウント時に親の幅が 0 だった救済・既定位置の置き直し)
+watch(isMinimized, (value) => {
+	if (value) {
+		remeasure()
+	}
 })
 
 const now = shallowRef(Date.now())
