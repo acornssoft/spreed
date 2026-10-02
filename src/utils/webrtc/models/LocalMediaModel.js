@@ -182,7 +182,8 @@ LocalMediaModel.prototype = {
 	},
 
 	_setInitialState(localStream) {
-		this.set('token', this._tokenStore.token)
+		// acorns: ミュート設定の保存先は、小窓で別の会話を表示していても通話の会話にする
+		this.set('token', this._tokenStore.signalingToken)
 
 		this._updateMediaAvailability(localStream)
 

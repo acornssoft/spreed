@@ -12,6 +12,7 @@ import { useTokenStore } from '../stores/token.ts'
 import { useDocumentVisibility } from './useDocumentVisibility.ts'
 import { useGetToken } from './useGetToken.ts'
 import { useIsInCall } from './useIsInCall.js'
+import { useJoinedConversation } from './useJoinedConversation.ts'
 
 const INACTIVE_TIME_MS = 3 * 60 * 1000
 
@@ -36,6 +37,14 @@ export function useActiveSession() {
 
 	const isInCall = useIsInCall()
 	const isDocumentVisible = useDocumentVisibility()
+
+	const joinedConversationToken = useJoinedConversation()
+	// acorns: 通話の会話に入室したまま別の会話を表示している間は、表示中の会話にセッションが無い。
+	// setSessionState が 404 になり自動入室でシグナリングが移って通話が切れるので、何もしない(設計書 §4.1-1)
+	const isViewingWithoutSession = () => {
+		const joined = joinedConversationToken.value
+		return !!joined && joined !== token.value && store.getters.isInCall(joined)
+	}
 
 	const inactiveTimer = ref(null)
 	const currentState = ref(SESSION.STATE.ACTIVE)
@@ -66,7 +75,8 @@ export function useActiveSession() {
 
 	const setSessionAsActive = async () => {
 		if (currentState.value === SESSION.STATE.ACTIVE
-			|| !token.value) {
+			|| !token.value
+			|| isViewingWithoutSession()) {
 			return
 		}
 		clearTimeout(inactiveTimer.value)
@@ -89,7 +99,8 @@ export function useActiveSession() {
 
 	const setSessionAsInactive = async () => {
 		if (currentState.value === SESSION.STATE.INACTIVE
-			|| !token.value) {
+			|| !token.value
+			|| isViewingWithoutSession()) {
 			return
 		}
 		if (isInCall.value) {

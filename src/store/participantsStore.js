@@ -1304,12 +1304,13 @@ const actions = {
 
 		// Special handling for phone rooms, if a call was rejected
 		if (value.status === 'rejected') {
-			const conversation = context.rootGetters.conversation(tokenStore.token)
+			// acorns: 電話会議室の通話は通話の会話で判定する
+			const conversation = context.rootGetters.conversation(tokenStore.signalingToken)
 
 			if (isConversationPhoneRoom(conversation)) {
 				const actorStore = useActorStore()
 				await context.dispatch('leaveCall', {
-					token: tokenStore.token,
+					token: tokenStore.signalingToken,
 					participantIdentifier: actorStore.participantIdentifier,
 					all: true,
 				})

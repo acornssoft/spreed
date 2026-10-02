@@ -32,7 +32,8 @@ export function canPlayAudio(mimetype) {
  * Checks if the current conversation is a voice room.
  */
 function isVoiceRoom() {
-	const conversation = store.getters.conversation(tokenStore.token)
+	// acorns: 通話の音を鳴らすか決めるのは通話の会話
+	const conversation = store.getters.conversation(tokenStore.signalingToken)
 	return Boolean(conversation?.attributes & CONVERSATION.ATTRIBUTE.VOICE_ROOM)
 }
 

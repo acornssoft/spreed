@@ -115,6 +115,7 @@ import IconPhoneDialOutline from 'vue-material-design-icons/PhoneDialOutline.vue
 import IconPhoneHangupOutline from 'vue-material-design-icons/PhoneHangupOutline.vue'
 import IconPhoneOffOutline from 'vue-material-design-icons/PhoneOffOutline.vue'
 import IconPhoneOutline from 'vue-material-design-icons/PhoneOutline.vue'
+import { useIsCallMinimized } from '../../composables/useCallToken.ts'
 import { useGetToken } from '../../composables/useGetToken.ts'
 import { useIsInCall } from '../../composables/useIsInCall.js'
 import { useJoinCall } from '../../composables/useJoinCall.ts'
@@ -207,7 +208,7 @@ export default {
 	},
 
 	setup() {
-		const { joinCall } = useJoinCall()
+		const { joinCall, ensureNoOtherCall } = useJoinCall()
 		return {
 			actorStore: useActorStore(),
 			tokenStore: useTokenStore(),
@@ -220,6 +221,9 @@ export default {
 			soundsStore: useSoundsStore(),
 			isMobile: useIsMobile(),
 			joinCall,
+			ensureNoOtherCall,
+			// acorns: 通話中に表示した別の会話(未入室)でも参加ボタンを押せるようにする
+			isCallMinimized: useIsCallMinimized(),
 		}
 	},
 
@@ -279,7 +283,7 @@ export default {
 				|| this.isInLobby
 				|| this.conversation.readOnly
 				|| this.isNextcloudTalkHashDirty
-				|| !this.tokenStore.currentConversationIsJoined
+				|| (!this.tokenStore.currentConversationIsJoined && !this.isCallMinimized)
 				|| blockCalls
 		},
 
@@ -423,7 +427,12 @@ export default {
 			this.loading = false
 		},
 
-		handleClick() {
+		async handleClick() {
+			// acorns: 別の会話で通話中なら、MediaSettings(カメラのプレビュー)を開く前に確認して移る
+			if (this.isCallMinimized && !await this.ensureNoOtherCall(this.token)) {
+				return
+			}
+
 			if (hasExternalCallService(this.conversation)) {
 				// Another service is in charge, trigger iframe rendering in MainView
 				this.handleExternalCall()

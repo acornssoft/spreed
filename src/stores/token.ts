@@ -21,6 +21,10 @@ export const useTokenStore = defineStore('token', () => {
 
 	const currentConversationIsJoined = computed(() => token.value !== '' && lastJoinedConversationToken.value === token.value)
 
+	// acorns: シグナリングがつながっている部屋。通話中に別の会話を表示していても通話の会話を指す
+	// (シグナリング由来のイベントはこちらに書き込む。設計書 §4.2)
+	const signalingToken = computed(() => lastJoinedConversationToken.value || token.value)
+
 	EventBus.on('signaling-join-room', handleSignalingJoinRoom)
 
 	onScopeDispose(() => {
@@ -67,6 +71,7 @@ export const useTokenStore = defineStore('token', () => {
 		fileIdForToken,
 		lastJoinedConversationToken,
 		currentConversationIsJoined,
+		signalingToken,
 
 		updateToken,
 		updateTokenAndFileIdForToken,

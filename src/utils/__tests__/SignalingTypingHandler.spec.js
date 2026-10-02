@@ -78,4 +78,16 @@ describe('SignalingTypingHandler (acorns thread-aware)', () => {
 		handler._handleParticipantsJoined(null, [{ nextcloudSessionId: 'new-session', signalingSessionId: 'sig-new' }])
 		expect(signaling.emit).toHaveBeenCalledWith('message', { type: 'startedTyping', to: 'sig-new', threadId: 5 })
 	})
+
+	test('acorns: 通話の会話 X に入室したまま Y を表示中なら、受信した入力中は X に書く', () => {
+		const tokenStore = useTokenStore(piniaInstance)
+		tokenStore.token = 'YYTOKENYY'
+		tokenStore.lastJoinedConversationToken = TOKEN
+
+		handler._handleMessage({ type: 'startedTyping', from: 'sig-other', threadId: 0 })
+		handler._handleParticipantsLeft(null, [{ nextcloudSessionId: 'other-session' }])
+
+		expect(store.dispatch).toHaveBeenCalledWith('setTyping', { token: TOKEN, sessionId: 'other-session', typing: true, threadId: 0 })
+		expect(store.dispatch).toHaveBeenCalledWith('setTyping', { token: TOKEN, sessionId: 'other-session', typing: false })
+	})
 })

@@ -8,7 +8,9 @@
 		:class="{ 'icon-loading': loading, 'in-call': isInCall }"
 		appName="talk">
 		<LeftSidebar v-if="getUserId" ref="leftSidebar" />
-		<NcAppContent>
+		<NcAppContent class="talk-app-content">
+			<!-- acorns: 通話中は CallView を 1 つ常駐させる(会話を切り替えても作り直さない) -->
+			<CallHost v-if="getUserId || isInCall" />
 			<router-view />
 		</NcAppContent>
 		<RightSidebar :isInCall="isInCall" />
@@ -33,6 +35,7 @@ import { provide } from 'vue'
 import { START_LOCATION } from 'vue-router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcContent from '@nextcloud/vue/components/NcContent'
+import CallHost from './components/CallView/CallHost.vue'
 import ConversationSettingsDialog from './components/ConversationSettings/ConversationSettingsDialog.vue'
 import LeftSidebar from './components/LeftSidebar/LeftSidebar.vue'
 import MediaSettings from './components/MediaSettings/MediaSettings.vue'
@@ -41,6 +44,7 @@ import RightSidebar from './components/RightSidebar/RightSidebar.vue'
 import SettingsDialog from './components/SettingsDialog/SettingsDialog.vue'
 import ConfirmDialog from './components/UIShared/ConfirmDialog.vue'
 import { useActiveSession } from './composables/useActiveSession.js'
+import { callSwitchInProgress, useCallToken, useCanBrowseDuringCall } from './composables/useCallToken.ts'
 import {
 	toggleFullscreen,
 	useDocumentFullscreen,
@@ -51,6 +55,7 @@ import { useHashCheck } from './composables/useHashCheck.js'
 import { useInterceptNotifications } from './composables/useInterceptNotifications.ts'
 import { useIsInCall } from './composables/useIsInCall.js'
 import { watchJoinedConversation } from './composables/useJoinedConversation.ts'
+import { useMinimizedCallLifecycle } from './composables/useMinimizedCallLifecycle.ts'
 import { useRecordingStatusSync } from './composables/useRecordingStatusSync.ts'
 import { useSessionIssueHandler } from './composables/useSessionIssueHandler.ts'
 import { CONVERSATION, PARTICIPANT } from './constants.ts'
@@ -63,6 +68,7 @@ import { useCallViewStore } from './stores/callView.ts'
 import { useSidebarStore } from './stores/sidebar.ts'
 import { useTokenStore } from './stores/token.ts'
 import { checkBrowser } from './utils/browserCheck.ts'
+import { planConversationSwitch } from './utils/callNavigation.ts'
 import { hasExternalCallService } from './utils/conversation.ts'
 import { signalingKill } from './utils/webrtc/index.js'
 
@@ -83,6 +89,7 @@ export default {
 	components: {
 		NcAppContent,
 		NcContent,
+		CallHost,
 		LeftSidebar,
 		RightSidebar,
 		SettingsDialog,
@@ -100,11 +107,15 @@ export default {
 		// Add provided value to check if we're in the main app or plugin
 		provide('Talk:isMainApp', true)
 		useDocumentFullscreen()
+		// acorns: 小窓の通話が終わったら表示中の会話に入り直す
+		useMinimizedCallLifecycle()
 
 		return {
 			token: useGetToken(),
 			tokenStore: useTokenStore(),
 			isInCall: useIsInCall(),
+			callToken: useCallToken(),
+			canBrowseDuringCall: useCanBrowseDuringCall(),
 			isLeavingAfterSessionIssue: useSessionIssueHandler(),
 			isMobile: useIsMobile(),
 			isNextcloudTalkHashDirty: useHashCheck(),
@@ -122,6 +133,8 @@ export default {
 			skipLeaveWarning: false,
 			recordingConsentGiven: false,
 			debounceRefreshCurrentConversation: () => {},
+			// acorns: switch-to-conversation(ブレイクアウト等)による通話ごとの移動中
+			isTransferringCall: false,
 		}
 	},
 
@@ -163,7 +176,8 @@ export default {
 		},
 
 		warnLeaving() {
-			return !this.isLeavingAfterSessionIssue && this.isInCall
+			// acorns: 別の会話を表示中でも、どこかで通話していれば警告する
+			return !this.isLeavingAfterSessionIssue && (this.isInCall || this.callToken !== '')
 		},
 
 		/**
@@ -276,13 +290,15 @@ export default {
 
 		window.addEventListener('unload', () => {
 			console.info('Navigating away, leaving conversation')
-			if (this.token) {
+			// acorns: 別の会話を表示中でも、セッションを持っているのは入室中の会話
+			const joinedToken = SessionStorage.getItem('joined_conversation') || this.token
+			if (joinedToken) {
 				SessionStorage.removeItem('joined_conversation')
 				// We have to do this synchronously, because in unload and beforeunload
 				// Promises, async and await are prohibited.
 				signalingKill()
 				if (!this.isLeavingAfterSessionIssue) {
-					leaveConversationSync(this.token)
+					leaveConversationSync(joinedToken)
 				}
 			}
 		})
@@ -291,7 +307,17 @@ export default {
 			await this.joinCallAutomatically(params.token)
 
 			this.skipLeaveWarning = true
-			this.$router.push({ name: 'conversation', params: { token: params.token } })
+			// acorns: 表示中の会話ではなく通話の会話から抜けさせる(planConversationSwitch の transferCall)
+			this.isTransferringCall = true
+			// acorns: 移送中は useMinimizedCallLifecycle の自動入室を止める(移送先 B への入室と競合させない。Review Focus 5)
+			callSwitchInProgress.value = true
+			try {
+				// acorns: guard が呼ばれない遷移(同じロケーション)でフラグが残らないよう、push の後で必ず戻す
+				await this.$router.push({ name: 'conversation', params: { token: params.token } })
+			} finally {
+				this.isTransferringCall = false
+				callSwitchInProgress.value = false
+			}
 		})
 
 		EventBus.on('conversations-received', (params) => {
@@ -316,21 +342,30 @@ export default {
 			this.$router.push({ name: 'forbidden' })
 		})
 
-		const beforeRouteChangeListener = async (to, from, next) => {
+		const beforeRouteChangeListener = async (to, from, next, { transferCall = false } = {}) => {
 			if (this.isNextcloudTalkHashDirty) {
 				// Nextcloud Talk configuration changed, reload the page when changing configuration
 				window.location = generateUrl('call/' + to.params.token)
 				return
 			}
 
-			if (from.name === 'conversation' && from.params.token !== to.params.token) {
+			// acorns: 通話中は表示だけ切り替え、退出・入室しない(設計書 §4.2)
+			const plan = planConversationSwitch({
+				fromToken: from.name === 'conversation' ? from.params.token : '',
+				toToken: to.name === 'conversation' ? to.params.token : '',
+				callToken: this.callToken,
+				browsing: this.canBrowseDuringCall,
+				transferCall,
+			})
+
+			if (plan.leaveToken) {
 				// Tear down the external call service view when leaving conversation,
 				// so iframe is not carried into the next one
-				if (hasExternalCallService(this.$store.getters.conversation(from.params.token))) {
+				if (hasExternalCallService(this.$store.getters.conversation(plan.leaveToken))) {
 					this.callViewStore.leaveExternalCall()
 				}
 				// Await to properly close session / leave call before joining another one
-				await this.$store.dispatch('leaveConversation', { token: from.params.token })
+				await this.$store.dispatch('leaveConversation', { token: plan.leaveToken })
 			}
 
 			/**
@@ -346,7 +381,9 @@ export default {
 						return
 					}
 				}
-				this.$store.dispatch('joinConversation', { token: to.params.token })
+				if (plan.joinToken) {
+					this.$store.dispatch('joinConversation', { token: plan.joinToken })
+				}
 			}
 
 			next()
@@ -377,13 +414,18 @@ export default {
 				// Block duplicated navigation
 				return
 			}
+			// acorns: 同期部分で読み取ってリセットする(beforeRouteChangeListener は await を挟む)
+			const transferCall = this.isTransferringCall
+			this.isTransferringCall = false
+
 			if (from.name === 'conversation' && to.name === 'conversation' && from.params.token === to.params.token) {
 				// Navigating within the same conversation
-				beforeRouteChangeListener(to, from, next)
-			} else if (!this.warnLeaving || this.skipLeaveWarning || this.isVoiceRoom(from.params.token)) {
+				beforeRouteChangeListener(to, from, next, { transferCall })
+			} else if (!this.warnLeaving || this.skipLeaveWarning || this.isVoiceRoom(from.params.token) || this.canBrowseDuringCall) {
 				// Safe to navigate
 				// Note: voice rooms are intended to be left without confirmation.
-				beforeRouteChangeListener(to, from, next)
+				// acorns: 通話を続けたまま見て回れるなら確認しない(D8 の対象外は従来どおり)
+				beforeRouteChangeListener(to, from, next, { transferCall })
 			} else {
 				spawnDialog(ConfirmDialog, {
 					name: t('spreed', 'Leave call'),
@@ -399,7 +441,7 @@ export default {
 							label: t('spreed', 'Leave call'),
 							variant: 'error',
 							callback: () => {
-								beforeRouteChangeListener(to, from, next)
+								beforeRouteChangeListener(to, from, next, { transferCall })
 							},
 						},
 					],
@@ -428,7 +470,8 @@ export default {
 		},
 
 		preventUnload(event) {
-			if ((!this.warnLeaving && !this.isSendingMessages) || this.isVoiceRoom(this.token)) {
+			// acorns: ボイスルーム判定は通話の会話で行う(表示中の会話ではなく)
+			if ((!this.warnLeaving && !this.isSendingMessages) || this.isVoiceRoom(this.callToken || this.token)) {
 				return
 			}
 
@@ -519,8 +562,9 @@ export default {
 			}
 		},
 
-		async joinCallAutomatically(targetToken, prevToken = this.token) {
-			if (this.isInCall) {
+		async joinCallAutomatically(targetToken, prevToken = this.callToken || this.token) {
+			// acorns: 別の会話を表示中でも通話していれば移す(isInCall はルート基準なので通話 token も見る)
+			if (this.isInCall || this.callToken) {
 				this.callViewStore.setForceCallView(true)
 
 				const enableAudio = !BrowserStorage.getItem('audioDisabled_' + prevToken)
@@ -653,6 +697,15 @@ body.talk-in-fullscreen {
 // Overwrites styles from public.scss in public conversations
 body#body-public {
 	--footer-height: 0;
+}
+
+// acorns: CallHost(absolute)の基準を NcAppContent にする。
+// NcAppContent の scoped .app-content[data-v-…]{position:initial}(詳細度 0,2,0)に勝つため、
+// NcContent が出す #content-vue を前置して詳細度 1,1,0 にする(!important は使わない)。
+// .app-content は #content-vue(display:flex)の flex 子で z-index:1000 を持ち stacking context は
+// 既に出来ているので、static→relative にしても重なりの順は変わらない。
+#content-vue .talk-app-content {
+	position: relative;
 }
 </style>
 

@@ -11,7 +11,6 @@ import { computed, onMounted, onUnmounted, provide, watch, watchEffect } from 'v
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import CallFailedDialog from '../components/CallView/CallFailedDialog.vue'
-import CallView from '../components/CallView/CallView.vue'
 import ChatView from '../components/ChatView.vue'
 import ExternalCallView from '../components/ExternalCallView.vue'
 import LobbyScreen from '../components/LobbyScreen.vue'
@@ -142,13 +141,13 @@ function handleDirectCall(routeToken: string) {
 </script>
 
 <template>
-	<div class="main-view">
+	<div class="main-view" :class="{ 'main-view--call-underlay': isInCall && !isInExternalCall }">
 		<LobbyScreen v-if="isInLobby" />
 		<template v-else>
 			<TopBar v-if="!isInExternalCall" :isInCall="isInCall" />
 			<ExternalCallView v-if="isInExternalCall" :token="token" />
-			<CallView v-else-if="isInCall" :token="token" />
-			<ChatView v-else />
+			<!-- acorns: 通話表示は App.vue の CallHost が下に描く(設計書 §4.3) -->
+			<ChatView v-else-if="!isInCall" />
 			<PollViewer />
 			<CallFailedDialog v-if="connectionFailed" :token="token" />
 		</template>
@@ -164,5 +163,14 @@ function handleDirectCall(routeToken: string) {
 	flex-direction: column;
 	align-content: space-between;
 	position: relative;
+}
+
+// acorns: 通話の会話を表示中は、下の CallHost の映像をクリックできるよう空いた部分はクリックを通す
+.main-view--call-underlay {
+	pointer-events: none;
+
+	> * {
+		pointer-events: auto;
+	}
 }
 </style>

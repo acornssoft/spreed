@@ -127,7 +127,8 @@ export default class SpeakingStatusHandler {
 	 */
 	#handleSpeaking(callParticipantModel, speaking) {
 		const attendeeId = this.#store.getters.findParticipant(
-			this.#tokenStore.token,
+			// acorns: 発話しているのは通話の会話の参加者
+			this.#tokenStore.signalingToken,
 			{ sessionId: callParticipantModel.attributes.nextcloudSessionId },
 		)?.attendeeId
 

@@ -6,7 +6,7 @@
 <template>
 	<div id="call-container">
 		<ViewerOverlayCallView
-			v-if="isViewerOverlay"
+			v-if="isViewerOverlay && !isMinimized"
 			:token="token"
 			:model="promotedParticipantModel"
 			:sharedData="promotedParticipantModel && sharedDatas[promotedParticipantModel.attributes.peerId]"
@@ -14,11 +14,11 @@
 			:localSharedData="localSharedData" />
 
 		<template v-else>
-			<EmptyCallView v-if="showEmptyCallView" :isSidebar="isSidebar" />
+			<EmptyCallView v-if="showEmptyCallView && !isMinimized" :isSidebar="isSidebar" />
 
-			<div id="videos" :class="{ 'is-sidebar': isSidebar }">
+			<div id="videos" :class="{ 'is-sidebar': isSidebar, 'is-minimized': isMinimized }">
 				<div
-					v-if="devMode ? !isGrid : (!isGrid || !callParticipantModels.length)"
+					v-if="isMinimized || (devMode ? !isGrid : (!isGrid || !callParticipantModels.length))"
 					class="video__promoted"
 					:class="{ 'full-page': showFullPage }">
 					<!-- Selected video override mode -->
@@ -132,8 +132,9 @@
 					:callParticipantModels="callParticipantModels" />
 
 				<!-- Local video if sidebar -->
+				<!-- acorns: 小窓では他の参加者が居ないときだけ自分の映像を出す -->
 				<LocalVideo
-					v-if="isSidebar && !showLocalVideo"
+					v-if="isSidebar && !showLocalVideo && (!isMinimized || !callParticipantModels.length)"
 					ref="localVideo"
 					class="local-video"
 					:class="{ 'local-video--sidebar': isSidebar }"
@@ -147,7 +148,7 @@
 					@clickVideo="handleClickLocalVideo" />
 			</div>
 
-			<BottomBar v-if="!isRecording" :isSidebar="isSidebar" />
+			<BottomBar v-if="!isRecording && !isMinimized" :isSidebar="isSidebar" />
 		</template>
 	</div>
 </template>
@@ -214,6 +215,12 @@ export default {
 
 		// Determines whether this component is used in the recording view
 		isRecording: {
+			type: Boolean,
+			default: false,
+		},
+
+		// acorns: 通話小窓として描く(設計書 §4.3)。isSidebar と一緒に渡される
+		isMinimized: {
 			type: Boolean,
 			default: false,
 		},
@@ -928,6 +935,11 @@ export default {
 
 #videos.hidden {
 	display: none;
+}
+
+// acorns: 小窓では操作バーを CallHost が下に出すので、映像は箱いっぱいに広げる
+#videos.is-minimized {
+	height: 100%;
 }
 
 :deep(video) {
