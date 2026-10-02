@@ -8,14 +8,19 @@ import type { Participant } from '../types/index.ts'
 import { showError } from '@nextcloud/dialogs'
 import { emit } from '@nextcloud/event-bus'
 import { t } from '@nextcloud/l10n'
+import { spawnDialog } from '@nextcloud/vue/functions/dialog'
+import { watch } from 'vue'
 import { useStore } from 'vuex'
+import ConfirmDialog from '../components/UIShared/ConfirmDialog.vue'
 import { ATTENDEE, CALL, PARTICIPANT } from '../constants.ts'
 import { callSIPDialOut } from '../services/callsService.ts'
 import { getTalkConfig } from '../services/CapabilitiesManager.ts'
 import { useActorStore } from '../stores/actor.ts'
 import { useSettingsStore } from '../stores/settings.ts'
+import { useTokenStore } from '../stores/token.ts'
 import { isAxiosErrorResponse } from '../types/guards.ts'
 import { isConversationPhoneRoom } from '../utils/conversation.ts'
+import { callSwitchInProgress, getOngoingCallToken } from './useCallToken.ts'
 
 /**
  * Handler function to join a call and manage side effects
@@ -24,6 +29,76 @@ export function useJoinCall() {
 	const actorStore = useActorStore()
 	const settingsStore = useSettingsStore()
 	const vuexStore = useStore()
+	const tokenStore = useTokenStore()
+
+	/**
+	 * acorns: シグナリングの部屋が token に移るまで待つ(joinCall は入室済みが前提)
+	 *
+	 * @param token 待つ会話
+	 * @param timeoutMs 打ち切り
+	 */
+	function waitForSignalingRoom(token: string, timeoutMs = 15_000): Promise<boolean> {
+		if (tokenStore.lastJoinedConversationToken === token) {
+			return Promise.resolve(true)
+		}
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => {
+				stop()
+				resolve(false)
+			}, timeoutMs)
+			const stop = watch(() => tokenStore.lastJoinedConversationToken, (value) => {
+				if (value === token) {
+					clearTimeout(timer)
+					stop()
+					resolve(true)
+				}
+			})
+		})
+	}
+
+	/**
+	 * acorns: 別の会話で通話中なら、抜けて token の会話に移るか確認する(設計書 §4.4・D6)。
+	 * 了承されたら通話の会話から退出し、token の会話に入室してシグナリングが移るまで待つ
+	 *
+	 * @param token これから通話に参加する会話
+	 * @return 続行してよいか
+	 */
+	async function ensureNoOtherCall(token: string): Promise<boolean> {
+		const callToken = getOngoingCallToken(vuexStore)
+		if (!callToken || callToken === token) {
+			return true
+		}
+
+		const confirmed = await spawnDialog(ConfirmDialog, {
+			name: t('spreed', 'Leave current call?'),
+			message: t('spreed', 'You are in a call in {conversation}. Leave it and join this call?', {
+				conversation: vuexStore.getters.conversation(callToken)?.displayName ?? '',
+			}),
+			buttons: [
+				{
+					label: t('spreed', 'Cancel'),
+					callback: () => undefined,
+				},
+				{
+					label: t('spreed', 'Leave and join'),
+					variant: 'primary',
+					callback: () => true,
+				},
+			],
+		})
+		if (!confirmed) {
+			return false
+		}
+
+		callSwitchInProgress.value = true
+		try {
+			await vuexStore.dispatch('leaveConversation', { token: callToken })
+			await vuexStore.dispatch('joinConversation', { token })
+			return await waitForSignalingRoom(token)
+		} finally {
+			callSwitchInProgress.value = false
+		}
+	}
 
 	/**
 	 * Tries to call the given SIP phone participant
@@ -62,6 +137,11 @@ export function useJoinCall() {
 		shouldStartRecording = false,
 		directCall = false,
 	} = {}) {
+		// acorns: 別の会話で通話中なら確認して移る(MainView の direct-call などボタン以外の入口も通る)
+		if (!await ensureNoOtherCall(token)) {
+			return
+		}
+
 		const conversation = vuexStore.getters.conversation(token)
 		if (!actorStore.participantIdentifier.sessionId || conversation.attendeeId !== actorStore.participantIdentifier.attendeeId) {
 			console.error('Trying to join call without having joined the conversation')
@@ -125,5 +205,6 @@ export function useJoinCall() {
 
 	return {
 		joinCall,
+		ensureNoOtherCall,
 	}
 }
