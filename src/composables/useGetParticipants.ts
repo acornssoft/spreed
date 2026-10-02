@@ -17,6 +17,7 @@ import { CONVERSATION } from '../constants.ts'
 import { EventBus } from '../services/EventBus.ts'
 import { useActorStore } from '../stores/actor.ts'
 import { useSessionStore } from '../stores/session.ts'
+import { useTokenStore } from '../stores/token.ts'
 import { useDocumentVisibility } from './useDocumentVisibility.ts'
 import { useGetToken } from './useGetToken.ts'
 import { useIsInCall } from './useIsInCall.js'
@@ -41,6 +42,9 @@ function useGetParticipantsComposable(activeTab = ref('participants')) {
 
 	const isActive = computed(() => activeTab.value === 'participants')
 	const token = useGetToken()
+	const tokenStore = useTokenStore()
+	// acorns: シグナリング由来のイベントは、シグナリングの部屋(通話中は通話の会話)のもの(設計書 §4.1-5)
+	const signalingToken = computed(() => tokenStore.signalingToken)
 	const conversation = computed<Conversation | undefined>(() => store.getters.conversation(token.value))
 	const isInLobby = computed<boolean>(() => store.getters.isInLobby)
 	const isModeratorOrUser = computed<boolean>(() => store.getters.isModeratorOrUser)
@@ -69,7 +73,7 @@ function useGetParticipantsComposable(activeTab = ref('participants')) {
 	 * @param payload."0" - users list
 	 */
 	function handleUsersUpdated([users]: [SignalingSessionPayload[]]) {
-		if (sessionStore.updateSessions(token.value, users)) {
+		if (sessionStore.updateSessions(signalingToken.value, users)) {
 			throttleUpdateParticipants()
 		} else {
 			throttleLongUpdate()
@@ -83,6 +87,11 @@ function useGetParticipantsComposable(activeTab = ref('participants')) {
 	 * @param payload."0" - users list
 	 */
 	async function checkCurrentUserPermissions([users]: [StandaloneSignalingUpdateSession[]]) {
+		// acorns: 通話の会話のイベントで、表示中の別の会話の権限を取り直さない
+		if (signalingToken.value !== token.value) {
+			return
+		}
+
 		if (!token.value || !conversation.value) {
 			// No token / conversation to associate message with (user left the room)
 			// TODO: should instead compare if signaling message came for the right room (need event payload change):
@@ -115,7 +124,7 @@ function useGetParticipantsComposable(activeTab = ref('participants')) {
 	 * @param payload."0" - users list
 	 */
 	function handleUsersLeft([sessionIds]: [StandaloneSignalingLeaveSession[]]) {
-		sessionStore.updateSessionsLeft(token.value, sessionIds)
+		sessionStore.updateSessionsLeft(signalingToken.value, sessionIds)
 		throttleLongUpdate()
 	}
 
@@ -123,7 +132,7 @@ function useGetParticipantsComposable(activeTab = ref('participants')) {
 	 * Patch participants list from signaling messages (end call for everyone)
 	 */
 	function handleUsersDisconnected() {
-		sessionStore.updateParticipantsDisconnectedFromStandaloneSignaling(token.value)
+		sessionStore.updateParticipantsDisconnectedFromStandaloneSignaling(signalingToken.value)
 		throttleLongUpdate()
 	}
 

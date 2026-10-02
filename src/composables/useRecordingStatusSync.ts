@@ -10,13 +10,11 @@ import { useStore } from 'vuex'
 import { CALL, PARTICIPANT } from '../constants.ts'
 import { getTalkConfig } from '../services/CapabilitiesManager.ts'
 import { EventBus } from '../services/EventBus.ts'
-import { useTokenStore } from '../stores/token.ts'
 
 /**
  * Composable for registering and cleaning up global EventBus listeners
  */
 export function useRecordingStatusSync() {
-	const tokenStore = useTokenStore()
 	const vuexStore = useStore()
 
 	if (getTalkConfig('local', 'signaling', 'mode') !== 'internal') {
@@ -41,11 +39,12 @@ export function useRecordingStatusSync() {
 			return
 		}
 
-		if (!vuexStore.getters.isInCall(tokenStore.token)) {
+		// acorns: 録画失敗はイベントが来た会話(通話の会話)で判定する
+		if (!vuexStore.getters.isInCall(token)) {
 			return
 		}
 
-		const conversation = vuexStore.getters.conversation(tokenStore.token)
+		const conversation = vuexStore.getters.conversation(token)
 		if (conversation?.participantType === PARTICIPANT.TYPE.OWNER
 			|| conversation?.participantType === PARTICIPANT.TYPE.MODERATOR) {
 			showError(t('spreed', 'The recording failed. Please contact your administrator.'))

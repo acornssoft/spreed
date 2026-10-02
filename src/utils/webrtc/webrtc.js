@@ -407,7 +407,8 @@ function usersInCallChanged(signaling, users) {
 		&& localUserInCall) {
 		console.info('Force leaving the call for current participant')
 		store.dispatch('leaveCall', {
-			token: tokenStore.token,
+			// acorns: 別の会話を表示中でも、退出するのは通話の会話
+			token: tokenStore.signalingToken,
 			participantIdentifier: actorStore.participantIdentifier,
 		})
 

@@ -112,7 +112,8 @@ SignalingTypingHandler.prototype = {
 		}
 
 		this._store.dispatch('setTyping', {
-			token: this._tokenStore.token,
+			// acorns: シグナリングの部屋(通話中に別の会話を表示していても通話の会話)に書く
+			token: this._tokenStore.signalingToken,
 			sessionId: participant.nextcloudSessionId,
 			typing: data.type === 'startedTyping',
 			threadId: Number(data.threadId) || 0, // acorns: 無し・不正は 0(旧クライアント)
@@ -138,7 +139,8 @@ SignalingTypingHandler.prototype = {
 	_handleParticipantsLeft(SignalingParticipantList, participants) {
 		for (const participant of participants) {
 			this._store.dispatch('setTyping', {
-				token: this._tokenStore.token,
+				// acorns: シグナリングの部屋(通話中に別の会話を表示していても通話の会話)に書く
+				token: this._tokenStore.signalingToken,
 				sessionId: participant.nextcloudSessionId,
 				typing: false,
 			})
