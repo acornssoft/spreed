@@ -699,8 +699,12 @@ body#body-public {
 	--footer-height: 0;
 }
 
-// acorns: CallHost(absolute)の基準にする
-.talk-app-content {
+// acorns: CallHost(absolute)の基準を NcAppContent にする。
+// NcAppContent の scoped .app-content[data-v-…]{position:initial}(詳細度 0,2,0)に勝つため、
+// NcContent が出す #content-vue を前置して詳細度 1,1,0 にする(!important は使わない)。
+// .app-content は #content-vue(display:flex)の flex 子で z-index:1000 を持ち stacking context は
+// 既に出来ているので、static→relative にしても重なりの順は変わらない。
+#content-vue .talk-app-content {
 	position: relative;
 }
 </style>
