@@ -8,7 +8,7 @@ import type { StandaloneSignalingUpdateSession } from '../../types/index.ts'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { createStore } from 'vuex'
 import router from '../../__mocks__/router.js'
 import { EventBus } from '../../services/EventBus.ts'
@@ -64,5 +64,12 @@ describe('useGetParticipants (acorns: 通話中に別の会話を表示)', () =>
 		const spy = vi.spyOn(sessionStore, 'updateSessions').mockReturnValue(false)
 		EventBus.emit('signaling-users-changed', [[{ sessionId: 's1' }] as unknown as StandaloneSignalingUpdateSession[]])
 		expect(spy).toHaveBeenCalledWith('X', [{ sessionId: 's1' }])
+	})
+
+	it('未入室の会話に切り替わったら、その会話の参加者を取りに行く', async () => {
+		await router.push({ name: 'conversation', params: { token: 'Z' } })
+		useTokenStore().updateToken('Z')
+		await nextTick()
+		expect(fetchParticipants).toHaveBeenCalledWith(expect.anything(), { token: 'Z' })
 	})
 })

@@ -223,8 +223,12 @@ function useGetParticipantsComposable(activeTab = ref('participants')) {
 
 	initialiseGetParticipants()
 
-	watch(token, () => {
+	watch(token, (newToken) => {
 		cancelPendingUpdates()
+		// acorns: 通話中に別の会話へ切り替えたときは入室イベント(joined-conversation)が来ないので、ここで取る
+		if (newToken && newToken !== tokenStore.signalingToken) {
+			cancelableGetParticipants()
+		}
 	})
 
 	watch(isActive, (newValue) => {

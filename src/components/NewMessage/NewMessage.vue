@@ -360,6 +360,7 @@ import NewMessageAudioRecorder from './NewMessageAudioRecorder.vue'
 import NewMessageChatSummary from './NewMessageChatSummary.vue'
 import NewMessageNewFileDialog from './NewMessageNewFileDialog.vue'
 import NewMessageTypingIndicator from './NewMessageTypingIndicator.vue'
+import { useIsCallMinimized } from '../../composables/useCallToken.ts'
 import { useChatMentions } from '../../composables/useChatMentions.ts'
 import { useGetThreadId } from '../../composables/useGetThreadId.ts'
 import { useTemporaryMessage } from '../../composables/useTemporaryMessage.ts'
@@ -505,6 +506,8 @@ export default {
 			createTemporaryMessage,
 			convertToUnix,
 			isSidebar,
+			// acorns: 通話中に別の会話を表示している小窓状態か(設計書 §4.3)
+			isCallMinimized: useIsCallMinimized(),
 		}
 	},
 
@@ -546,8 +549,15 @@ export default {
 			return (this.conversation.permissions & PARTICIPANT.PERMISSIONS.CHAT) === 0
 		},
 
+		// acorns: 通話の会話に入室したまま別の会話を表示している間は、未入室でも書き込める
+		// (サーバは参加者ならセッション無しで受け付ける。設計書 §3・D5)。
+		// 設計書 D5 の「参加者である」を満たすため isModeratorOrUser も見る(開放会話で未参加のまま送ると 403)
+		canPostWithoutJoining() {
+			return this.isCallMinimized && !this.actorStore.isActorGuest && this.$store.getters.isModeratorOrUser
+		},
+
 		disabled() {
-			return this.isReadOnly || this.noChatPermission || !this.currentConversationIsJoined || this.isRecordingAudio
+			return this.isReadOnly || this.noChatPermission || (!this.currentConversationIsJoined && !this.canPostWithoutJoining) || this.isRecordingAudio
 		},
 
 		scheduleMessageTime() {
@@ -574,7 +584,7 @@ export default {
 				return t('spreed', 'This conversation has been locked')
 			} else if (this.noChatPermission) {
 				return t('spreed', 'No permission to post messages in this conversation')
-			} else if (!this.currentConversationIsJoined) {
+			} else if (!this.currentConversationIsJoined && !this.canPostWithoutJoining) {
 				return t('spreed', 'Joining conversation …')
 			} else if (this.silentChat) {
 				return t('spreed', 'Write a message without notification')
