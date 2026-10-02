@@ -8,7 +8,9 @@
 		:class="{ 'icon-loading': loading, 'in-call': isInCall }"
 		appName="talk">
 		<LeftSidebar v-if="getUserId" ref="leftSidebar" />
-		<NcAppContent>
+		<NcAppContent class="talk-app-content">
+			<!-- acorns: 通話中は CallView を 1 つ常駐させる(会話を切り替えても作り直さない) -->
+			<CallHost v-if="getUserId || isInCall" />
 			<router-view />
 		</NcAppContent>
 		<RightSidebar :isInCall="isInCall" />
@@ -33,6 +35,7 @@ import { provide } from 'vue'
 import { START_LOCATION } from 'vue-router'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcContent from '@nextcloud/vue/components/NcContent'
+import CallHost from './components/CallView/CallHost.vue'
 import ConversationSettingsDialog from './components/ConversationSettings/ConversationSettingsDialog.vue'
 import LeftSidebar from './components/LeftSidebar/LeftSidebar.vue'
 import MediaSettings from './components/MediaSettings/MediaSettings.vue'
@@ -86,6 +89,7 @@ export default {
 	components: {
 		NcAppContent,
 		NcContent,
+		CallHost,
 		LeftSidebar,
 		RightSidebar,
 		SettingsDialog,
@@ -693,6 +697,11 @@ body.talk-in-fullscreen {
 // Overwrites styles from public.scss in public conversations
 body#body-public {
 	--footer-height: 0;
+}
+
+// acorns: CallHost(absolute)の基準にする
+.talk-app-content {
+	position: relative;
 }
 </style>
 
