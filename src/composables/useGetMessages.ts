@@ -26,11 +26,14 @@ import { EventBus } from '../services/EventBus.ts'
 import { useChatStore } from '../stores/chat.ts'
 import { useChatExtrasStore } from '../stores/chatExtras.ts'
 import { useGuestNameStore } from '../stores/guestName.ts'
+import { useTokenStore } from '../stores/token.ts'
 import { isAxiosErrorResponse } from '../types/guards.ts'
+import { isChatRelayActiveFor, shouldStartPollingImmediately } from '../utils/chatRelay.ts'
 import { debugTimer } from '../utils/debugTimer.ts'
 import { isFileShareMessage, tryLocalizeDeletedMessage, tryLocalizeSystemMessage } from '../utils/message.ts'
 import { pollingOwnership } from '../utils/pollingOwnership.ts'
 import { isEventForThread } from '../utils/threadEvent.ts'
+import { getOngoingCallToken } from './useCallToken.ts'
 import { useGetThreadId } from './useGetThreadId.ts'
 import { useGetToken } from './useGetToken.ts'
 
@@ -127,6 +130,13 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 
 	const currentToken = useGetToken()
 	const contextThreadId = useGetThreadId()
+	const tokenStore = useTokenStore()
+	/**
+	 * acorns: この会話の新着が chat-relay で届くか(通話中に別の会話を表示しているときは届かない)
+	 *
+	 * @param token 会話
+	 */
+	const relayActive = (token: string) => isChatRelayActiveFor(chatRelaySupported, token, tokenStore.signalingToken)
 	// acorns: このインスタンスの登録簿エントリ。所有者になったら pollNewMessages を始める
 	const pollingInstance: PollingInstance = {
 		id: Symbol('useGetMessages'),
@@ -233,7 +243,10 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				// acorns: 所有者だったときだけポーリングを止める(登録解除で残りが引き継ぐ)
 				if (isPollingOwner(oldToken)) {
 					store.dispatch('cancelPollNewMessages', { requestId: oldToken })
-					chatRelaySupported = null
+					// acorns: 通話中はシグナリングが通話の会話に残り hello が再送されないので、判定を消さない
+					if (!getOngoingCallToken(store)) {
+						chatRelaySupported = null
+					}
 					clearInterval(fallbackPollInterval)
 				}
 				pollingOwnership.unregister(oldToken, pollingInstance)
@@ -553,10 +566,15 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			return
 		}
 
-		if (chatRelaySupported !== null) {
+		if (shouldStartPollingImmediately(chatRelaySupported, token, tokenStore.signalingToken)) {
 			// Case: chat relay is confirmed to be supported / not supported from signaling hello message,
 			// but polling was not immediately triggered (e.g, when received while context request is ongoing)
-			pollNewMessages(token)
+			// acorns: 未入室の会話(通話中に表示)は hello が来ないので待たずに始める
+			await pollNewMessages(token)
+			if (relayActive(token)) {
+				// acorns: 通話の会話に戻ったとき。relay の取りこぼしに備えて 2 分ごとの取得を再開する
+				restartFallbackPollNewMessages()
+			}
 		} else {
 			// Fallback polling in case signaling does not work and we will never receive Hello message
 			// chatRelaySupported is still null (signaling hello was not received yet)
@@ -677,7 +695,8 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 
 		const lastKnownMessageId = payload?.messageId ?? chatStore.getLastKnownId(token, { messageId: contextMessageId.value, threadId: contextThreadId.value })
 		const pollingLastKnownMessageId = chatStore.getLastKnownId(token)
-		if (!chatRelaySupported && lastKnownMessageId === pollingLastKnownMessageId) {
+		// acorns: relay の効き目は会話ごと(通話中に表示した別の会話には届かない)
+		if (!relayActive(token) && lastKnownMessageId === pollingLastKnownMessageId) {
 			// Do not make parallel request with polling
 			return
 		}
@@ -740,7 +759,7 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				token,
 				lastKnownMessageId,
 				requestId: token,
-				timeout: chatRelaySupported ? 0 : undefined,
+				timeout: relayActive(token) ? 0 : undefined,
 			})
 
 			// acorns: await 中に所有者が替わった(会話切替/ペイン開閉)なら、新所有者の pollingTimeout を触らずに抜ける
@@ -774,7 +793,7 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 				// This is not an error, so reset error timeout and poll again
 				pollingErrorTimeout = 1_000
 				clearTimeout(pollingTimeout)
-				if (chatRelaySupported) {
+				if (relayActive(token)) {
 					restartFallbackPollNewMessages()
 					return
 				}
@@ -793,7 +812,7 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 			console.debug('Error happened while getting chat messages. Trying again in %d seconds', pollingErrorTimeout / 1_000, exception)
 
 			clearTimeout(pollingTimeout)
-			if (chatRelaySupported) {
+			if (relayActive(token)) {
 				restartFallbackPollNewMessages()
 				return
 			}
@@ -804,7 +823,7 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 		}
 
 		clearTimeout(pollingTimeout)
-		if (chatRelaySupported) {
+		if (relayActive(token)) {
 			restartFallbackPollNewMessages()
 			return
 		}
@@ -817,7 +836,7 @@ export function useGetMessagesProvider(options?: { isSidebar?: boolean }) {
 	 *
 	 */
 	function tryPollNewMessages() {
-		if (!chatRelaySupported) {
+		if (!relayActive(currentToken.value)) {
 			// the event is only relevant when chat relay is supported
 			return
 		}
