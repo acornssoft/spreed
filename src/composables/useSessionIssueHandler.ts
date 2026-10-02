@@ -13,12 +13,14 @@ import { useStore } from 'vuex'
 import ConfirmDialog from '../components/UIShared/ConfirmDialog.vue'
 import { EventBus } from '../services/EventBus.ts'
 import SessionStorage from '../services/SessionStorage.js'
+import { useGetToken } from './useGetToken.ts'
 
 /**
  * Check whether the conflicting session detected or not, and navigate to another page
  */
 export function useSessionIssueHandler(): DeepReadonly<Ref<boolean>> {
 	const store = useStore()
+	const viewToken = useGetToken()
 
 	const isLeavingAfterSessionIssue = ref(false)
 
@@ -103,6 +105,13 @@ export function useSessionIssueHandler(): DeepReadonly<Ref<boolean>> {
 	 * TODO: current workaround is to force page refresh to kill stray WebRTC connections
 	 */
 	function deletedSessionTriggered() {
+		// acorns: 通話の会話から外されたとき、別の会話を表示中ならその会話へリロードする。
+		// リロード自体は残す(迷子の WebRTC 接続を確実に消すための upstream の回避策。設計書 §4.4)
+		const joined = SessionStorage.getItem('joined_conversation')
+		if (viewToken.value && joined && viewToken.value !== joined) {
+			redirectTo('/call/' + viewToken.value)
+			return
+		}
 		redirectTo('/apps/spreed/not-found')
 	}
 

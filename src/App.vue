@@ -41,7 +41,7 @@ import RightSidebar from './components/RightSidebar/RightSidebar.vue'
 import SettingsDialog from './components/SettingsDialog/SettingsDialog.vue'
 import ConfirmDialog from './components/UIShared/ConfirmDialog.vue'
 import { useActiveSession } from './composables/useActiveSession.js'
-import { useCallToken, useCanBrowseDuringCall } from './composables/useCallToken.ts'
+import { callSwitchInProgress, useCallToken, useCanBrowseDuringCall } from './composables/useCallToken.ts'
 import {
 	toggleFullscreen,
 	useDocumentFullscreen,
@@ -52,6 +52,7 @@ import { useHashCheck } from './composables/useHashCheck.js'
 import { useInterceptNotifications } from './composables/useInterceptNotifications.ts'
 import { useIsInCall } from './composables/useIsInCall.js'
 import { watchJoinedConversation } from './composables/useJoinedConversation.ts'
+import { useMinimizedCallLifecycle } from './composables/useMinimizedCallLifecycle.ts'
 import { useRecordingStatusSync } from './composables/useRecordingStatusSync.ts'
 import { useSessionIssueHandler } from './composables/useSessionIssueHandler.ts'
 import { CONVERSATION, PARTICIPANT } from './constants.ts'
@@ -102,6 +103,8 @@ export default {
 		// Add provided value to check if we're in the main app or plugin
 		provide('Talk:isMainApp', true)
 		useDocumentFullscreen()
+		// acorns: 小窓の通話が終わったら表示中の会話に入り直す
+		useMinimizedCallLifecycle()
 
 		return {
 			token: useGetToken(),
@@ -302,11 +305,14 @@ export default {
 			this.skipLeaveWarning = true
 			// acorns: 表示中の会話ではなく通話の会話から抜けさせる(planConversationSwitch の transferCall)
 			this.isTransferringCall = true
+			// acorns: 移送中は useMinimizedCallLifecycle の自動入室を止める(移送先 B への入室と競合させない。Review Focus 5)
+			callSwitchInProgress.value = true
 			try {
 				// acorns: guard が呼ばれない遷移(同じロケーション)でフラグが残らないよう、push の後で必ず戻す
 				await this.$router.push({ name: 'conversation', params: { token: params.token } })
 			} finally {
 				this.isTransferringCall = false
+				callSwitchInProgress.value = false
 			}
 		})
 
