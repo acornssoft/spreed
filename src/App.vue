@@ -302,7 +302,12 @@ export default {
 			this.skipLeaveWarning = true
 			// acorns: 表示中の会話ではなく通話の会話から抜けさせる(planConversationSwitch の transferCall)
 			this.isTransferringCall = true
-			this.$router.push({ name: 'conversation', params: { token: params.token } })
+			try {
+				// acorns: guard が呼ばれない遷移(同じロケーション)でフラグが残らないよう、push の後で必ず戻す
+				await this.$router.push({ name: 'conversation', params: { token: params.token } })
+			} finally {
+				this.isTransferringCall = false
+			}
 		})
 
 		EventBus.on('conversations-received', (params) => {
