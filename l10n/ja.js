@@ -2350,6 +2350,11 @@ OC.L10N.register(
     "No reminders" : "リマインダーはありません",
     "Set a reminder on a message to find it here later." : "メッセージにリマインダーを設定すると、ここから後で見つけられます。",
     "Only the first {limit} reminders are shown" : "先頭 {limit} 件のみ表示しています",
-    "Could not detect the PHP and Apache configuration because exec is disabled or apachectl is not working as expected. Please note that PHP can only be used with the MPM_PREFORK module and PHP-FPM can only be used with the MPM_EVENT module." : "exec が無効になっているか apachectl が想定どおりに動作しないため、PHP と Apache の構成を検出できませんでした。PHP は MPM_PREFORK モジュールとの組み合わせでのみ、PHP-FPM は MPM_EVENT モジュールとの組み合わせでのみ利用できることに注意してください。"
+    "Could not detect the PHP and Apache configuration because exec is disabled or apachectl is not working as expected. Please note that PHP can only be used with the MPM_PREFORK module and PHP-FPM can only be used with the MPM_EVENT module." : "exec が無効になっているか apachectl が想定どおりに動作しないため、PHP と Apache の構成を検出できませんでした。PHP は MPM_PREFORK モジュールとの組み合わせでのみ、PHP-FPM は MPM_EVENT モジュールとの組み合わせでのみ利用できることに注意してください。",
+    "Return to call" : "通話に戻る",
+    "Drag to move" : "ドラッグで移動",
+    "Leave current call?" : "今の通話を抜けますか？",
+    "You are in a call in {conversation}. Leave it and join this call?" : "{conversation} で通話中です。抜けてこの通話に参加しますか？",
+    "Leave and join" : "抜けて参加"
 },
 "nplurals=1; plural=0;");
