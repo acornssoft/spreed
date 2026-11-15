@@ -1423,6 +1423,40 @@ export function initWebRtc(signaling, _callParticipantCollection, _localCallPart
 		return callFlags
 	}
 
+	// acorns: 通話フラグの更新はサーバーの応答が返るまで signaling 側の値に
+	// 反映されない。その間にローカルのトラックが変わると、古い値と比べて
+	// 「変更なし」と誤判定し、サーバーだけが古いフラグで固まる(後から参加
+	// した人が接続を張らない)。更新中のトラック変更は応答を待ってから扱う。
+	let callFlagsUpdatesInProgress = 0
+	let localTrackReplacedDuringCallFlagsUpdate = null
+
+	/**
+	 * Send the given call flags to the server.
+	 *
+	 * Local track changes that happen while the flags are being sent are
+	 * handled once the update finishes (no matter if it succeeded or not).
+	 *
+	 * @param {number} callFlags a bitwise combination of call flags.
+	 */
+	function updateCallFlags(callFlags) {
+		callFlagsUpdatesInProgress++
+
+		const handleUpdateFinished = () => {
+			callFlagsUpdatesInProgress--
+
+			if (callFlagsUpdatesInProgress > 0 || !localTrackReplacedDuringCallFlagsUpdate) {
+				return
+			}
+
+			const { trackAdded } = localTrackReplacedDuringCallFlagsUpdate
+			localTrackReplacedDuringCallFlagsUpdate = null
+
+			handleLocalTrackReplaced(trackAdded)
+		}
+
+		signaling.updateCurrentCallFlags(callFlags).then(handleUpdateFinished, handleUpdateFinished)
+	}
+
 	signaling.on('joinCall', function(token) {
 		const expectedCallFlags = getCallFlagsFromLocalMedia()
 
@@ -1443,7 +1477,7 @@ export function initWebRtc(signaling, _callParticipantCollection, _localCallPart
 			return
 		}
 
-		signaling.updateCurrentCallFlags(expectedCallFlags)
+		updateCallFlags(expectedCallFlags)
 	})
 
 	/**
@@ -1463,7 +1497,22 @@ export function initWebRtc(signaling, _callParticipantCollection, _localCallPart
 		return webrtc.webrtc.getPeers(null, 'video').length > 0 || Object.keys(delayedConnectionToPeer).length > 0
 	}
 
-	webrtc.on('localTrackReplaced', function(newTrack, oldTrack/* , stream */) {
+	/**
+	 * Adjust the call flags, or force a reconnection if needed, after a local
+	 * track was replaced.
+	 *
+	 * @param {boolean} trackAdded whether the track was replaced by another
+	 *        track (true) or just removed (false).
+	 */
+	function handleLocalTrackReplaced(trackAdded) {
+		if (callFlagsUpdatesInProgress > 0) {
+			localTrackReplacedDuringCallFlagsUpdate = {
+				trackAdded: trackAdded || !!localTrackReplacedDuringCallFlagsUpdate?.trackAdded,
+			}
+
+			return
+		}
+
 		const callFlags = getCallFlagsFromLocalMedia()
 
 		// A reconnection is not needed if a device is disabled or if there are
@@ -1474,15 +1523,21 @@ export function initWebRtc(signaling, _callParticipantCollection, _localCallPart
 		// sender peers or there are, but the previous call flags were just "in
 		// call", a reconnection is needed to ensure that the other participants
 		// will try to connect with the local one.
-		if (newTrack && previousUsersInRoom.length > 0 && (!hasSenderPeers() || signaling.getCurrentCallFlags() === PARTICIPANT.CALL_FLAG.IN_CALL)) {
+		// acorns: 更新中に溜めた変更では、追加されたトラックが既に外れている
+		// ことがある。メディアが残っていなければ再接続は要らない。
+		if (trackAdded && callFlags !== PARTICIPANT.CALL_FLAG.IN_CALL && previousUsersInRoom.length > 0 && (!hasSenderPeers() || signaling.getCurrentCallFlags() === PARTICIPANT.CALL_FLAG.IN_CALL)) {
 			forceReconnect(signaling, callFlags)
 
 			return
 		}
 
 		if (signaling.getCurrentCallFlags() !== callFlags) {
-			signaling.updateCurrentCallFlags(callFlags)
+			updateCallFlags(callFlags)
 		}
+	}
+
+	webrtc.on('localTrackReplaced', function(newTrack/* , oldTrack, stream */) {
+		handleLocalTrackReplaced(!!newTrack)
 	})
 
 	webrtc.on('localMediaStarted', function(/* configuration */) {
