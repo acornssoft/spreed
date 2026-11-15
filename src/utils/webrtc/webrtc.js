@@ -431,6 +431,45 @@ function usersInCallChanged(signaling, users) {
 	if (newUsers.length || disconnectedSessionIds.length) {
 		usersChanged(signaling, newUsers, disconnectedSessionIds)
 	}
+
+	requestMissingOffers(signaling, currentUsersInRoom, userMapping)
+}
+
+/**
+ * Request the offers of the participants that have media but for which there
+ * is neither a connection nor a pending request for it.
+ *
+ * acorns: HPB では、相手を通話で最初に見た時点でメディアが無ければ offer を
+ * 要求せず、後から相手のフラグにメディアが立っても見直さない(相手側の強制
+ * 再接続に任せている)。相手のフラグ更新が取りこぼされると、接続が張られ
+ * ないまま通話が続く。参加者の状態が変わるたびに見直す。
+ *
+ * @param {object} signaling The signaling object
+ * @param {Array} sessionIds Session ids of the other participants in the call
+ * @param {object} userMapping Participant list with sessionId as key
+ */
+function requestMissingOffers(signaling, sessionIds, userMapping) {
+	if (!signaling.hasFeature('mcu')) {
+		return
+	}
+
+	sessionIds.forEach(function(sessionId) {
+		const user = userMapping[sessionId]
+
+		if (!userHasStreams(user) || webrtc.webrtc.getPeers(sessionId, 'video').length || delayedConnectionToPeer[sessionId]) {
+			return
+		}
+
+		console.debug('Participant has media but there is no connection, request offer', sessionId)
+
+		signaling.requestOffer(user, 'video')
+
+		delayedConnectionToPeer[sessionId] = setInterval(function() {
+			console.debug('No offer received for peer, request offer again', sessionId)
+
+			signaling.requestOffer(user, 'video')
+		}, 10000)
+	})
 }
 
 /**

@@ -393,4 +393,102 @@ describe('webrtc', () => {
 			expect(axios.put.mock.calls[1][1]).toEqual({ flags: IN_CALL })
 		})
 	})
+
+	describe('connections with other participants (HPB)', () => {
+		/**
+		 * @return {Array} the session ids for which an offer was requested, in
+		 *         the order in which they were requested
+		 */
+		function requestedOffers() {
+			return signaling.requestOffer.mock.calls.map(([user, roomType]) => {
+				const sessionId = typeof user === 'string' ? user : user.sessionId
+
+				return sessionId + ':' + roomType
+			})
+		}
+
+		/**
+		 * The HPB sends the offer and SimpleWebRTC creates the receiver peer
+		 * from it.
+		 *
+		 * @param {string} sessionId the session id of the publisher
+		 */
+		function receiveOfferFrom(sessionId) {
+			signaling._trigger('message', [{ type: 'offer', roomType: 'video', from: sessionId, sid: '1' }])
+
+			webrtc.emit('createdPeer', webrtc.webrtc.createPeer({ id: sessionId, type: 'video' }))
+		}
+
+		beforeEach(async () => {
+			vi.useFakeTimers()
+
+			await joinCall(IN_CALL_WITH_AUDIO, { audio: true, video: false })
+		})
+
+		test('requests an offer once a participant that joined the call without media gets audio', () => {
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL }])
+			receiveAnswerForOwnPeer()
+
+			expect(requestedOffers()).toEqual([])
+
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL_WITH_AUDIO }])
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video'])
+		})
+
+		test('keeps requesting the offer of a participant that got audio until the offer is received', () => {
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL }])
+			receiveAnswerForOwnPeer()
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL_WITH_AUDIO }])
+
+			vi.advanceTimersByTime(10000)
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video', 'otherSessionId:video'])
+
+			receiveOfferFrom('otherSessionId')
+
+			vi.advanceTimersByTime(30000)
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video', 'otherSessionId:video'])
+		})
+
+		test('does not request another offer when the flags change for a participant with an established connection', () => {
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL_WITH_AUDIO }])
+			receiveAnswerForOwnPeer()
+			receiveOfferFrom('otherSessionId')
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video'])
+
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL_WITH_AUDIO_AND_VIDEO }])
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video'])
+		})
+
+		test('does not request another offer when the participants change while a request is still pending', () => {
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL_WITH_AUDIO }])
+			receiveAnswerForOwnPeer()
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video'])
+
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [
+				{ sessionId: 'otherSessionId', inCall: IN_CALL_WITH_AUDIO },
+				{ sessionId: 'thirdSessionId', inCall: IN_CALL },
+			])
+
+			expect(requestedOffers()).toEqual(['otherSessionId:video'])
+		})
+
+		test('does not request an offer for a participant that stays in the call without media', () => {
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [{ sessionId: 'otherSessionId', inCall: IN_CALL }])
+			receiveAnswerForOwnPeer()
+			setParticipantsInCall(IN_CALL_WITH_AUDIO, [
+				{ sessionId: 'otherSessionId', inCall: IN_CALL },
+				{ sessionId: 'thirdSessionId', inCall: IN_CALL },
+			])
+
+			vi.advanceTimersByTime(30000)
+
+			expect(requestedOffers()).toEqual([])
+		})
+	})
 })
