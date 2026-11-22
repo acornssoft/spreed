@@ -28,6 +28,19 @@ import { messagePleaseTryToReload } from './talkDesktopUtils.ts'
 
 const actorStore = useActorStore(pinia)
 
+// acorns: 接続が 1001 (Going Away) で閉じられたとき、ページ自身が離れようとしているのかを見分ける。
+// 1001 はブラウザがページ遷移で閉じるときだけでなく、手前のプロキシ(Cloudflare の
+// "WebSocket proxy restarting" など)やシグナリングサーバの停止でも届く。後者はページが
+// 開いたままなので、つなぎ直さないとリロードするまでシグナリング無しで動き続けてしまう
+let isPageBeingLeft = false
+window.addEventListener('pagehide', () => {
+	isPageBeingLeft = true
+})
+window.addEventListener('pageshow', () => {
+	// bfcache から戻ったとき
+	isPageBeingLeft = false
+})
+
 const Signaling = {
 	Base: {},
 	Internal: {},
@@ -751,7 +764,9 @@ Signaling.Standalone.prototype.connect = function() {
 			this.signalingConnectionError.hideToast()
 			this.signalingConnectionError = null
 		}
-		if (this.socket && event.code !== 1001) {
+		// acorns: 1001 でも、ページを離れる途中でなければつなぎ直す(自分で閉じたときは this.socket が null)
+		const isClosedByLeavingPage = event.code === 1001 && isPageBeingLeft
+		if (this.socket && !isClosedByLeavingPage) {
 			console.debug('Reconnecting socket as the connection was closed unexpected')
 			this.reconnect()
 		}
@@ -1292,7 +1307,7 @@ Signaling.Standalone.prototype.joinResponseReceived = function(data, token) {
 	console.debug('Joined', data, token)
 
 	if (data.type === 'error' && data.error.code === 'no_such_room') {
-		this.processErrorNoSuchRoom()
+		this.processErrorNoSuchRoom(token)
 		return
 	}
 
@@ -1561,7 +1576,10 @@ Signaling.Standalone.prototype.processRoomParticipantsEvent = function(data) {
 	}
 }
 
-Signaling.Standalone.prototype.processErrorNoSuchRoom = function() {
+/**
+ * @param {string} [rejectedToken] acorns: the room whose join was rejected
+ */
+Signaling.Standalone.prototype.processErrorNoSuchRoom = function(rejectedToken) {
 	// 'no_such_room' is a generic rejection of a room join:
 	// - the room might be gone;
 	// - the user might no longer be a participant (banned/removed);
@@ -1571,6 +1589,13 @@ Signaling.Standalone.prototype.processErrorNoSuchRoom = function() {
 	// actually gone, the rejoin below fails and surfaces the proper error.
 	const token = this.currentRoomToken
 	if (!token) {
+		return
+	}
+
+	// acorns: 会話を素早く切り替えると、退出済みの部屋への入室の拒否が遅れて届く。
+	// その応答で「いまの部屋」に入り直すと、不要な再入室でセッションを作り直すことになる
+	if (rejectedToken && rejectedToken !== token) {
+		console.debug('Join of room %s was rejected, but the current room is %s now, not rejoining', rejectedToken, token)
 		return
 	}
 

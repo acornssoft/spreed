@@ -529,3 +529,41 @@ Feature: chat-4/threads
     And user "participant1" sees the following recent threads in room "room" with 200
       | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | a.lastReadMessage | a.unreadMessages | firstMessage | lastMessage |
       | Message 1 | Message 1 | 1            | Reply 1       | 0                   | Reply 1           | 0                | Message 1    | Reply 1     |
+
+  Scenario: acorns - A thread created from a shared file is named after the file
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" shares "welcome.txt" with room "room"
+    And user "participant1" sees the following messages in room "room" with 200
+      | room | actorType | actorId      | actorDisplayName         | message | messageParameters |
+      | room | users     | participant1 | participant1-displayname | {file}  | "IGNORE"          |
+    # 本文は JSON で保存されている。スレッド名には JSON ではなくファイル名を使う
+    When user "participant1" creates thread from message "{file}" in room "room" with 200
+    Then user "participant1" sees the following recent threads in room "room" with 200
+      | t.id   | t.title     | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
+      | {file} | welcome.txt | 0            | 0             | 0                   | {file}       | NULL        |
+
+  Scenario: acorns - A thread created from a shared file with a caption is named after the caption
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" shares "welcome.txt" with room "room"
+      | talkMetaData.caption | Caption 1 |
+    And user "participant1" sees the following messages in room "room" with 200
+      | room | actorType | actorId      | actorDisplayName         | message   | messageParameters |
+      | room | users     | participant1 | participant1-displayname | Caption 1 | "IGNORE"          |
+    When user "participant1" creates thread from message "Caption 1" in room "room" with 200
+    Then user "participant1" sees the following recent threads in room "room" with 200
+      | t.id      | t.title   | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage | lastMessage |
+      | Caption 1 | Caption 1 | 0            | 0             | 0                   | Caption 1    | NULL        |
+
+  Scenario: acorns - The name of a thread created from a long message is cut to 50 characters
+    Given user "participant1" creates room "room" (v4)
+      | roomType | 2 |
+      | roomName | room |
+    And user "participant1" sends message "012345678901234567890123456789012345678901234567890123456789" to room "room" with 201
+    When user "participant1" creates thread from message "012345678901234567890123456789012345678901234567890123456789" in room "room" with 200
+    Then user "participant1" sees the following recent threads in room "room" with 200
+      | t.id                                                         | t.title                                             | t.numReplies | t.lastMessage | a.notificationLevel | firstMessage                                                 | lastMessage |
+      | 012345678901234567890123456789012345678901234567890123456789 | 01234567890123456789012345678901234567890123456789… | 0            | 0             | 0                   | 012345678901234567890123456789012345678901234567890123456789 | NULL        |

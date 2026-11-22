@@ -258,6 +258,14 @@
 								<IconForumOutline :size="20" />
 							</template>
 							{{ t('spreed', 'Threads') }}
+							<!-- acorns: 未読のあるスレッドの数 -->
+							<template v-if="unreadThreadsCount > 0" #badge>
+								<NcCounterBubble
+									type="highlighted"
+									:count="unreadThreadsCount"
+									:title="t('spreed', '{count} threads with unread messages', { count: unreadThreadsCount })"
+									:aria-label="t('spreed', '{count} threads with unread messages', { count: unreadThreadsCount })" />
+							</template>
 						</LeftSidebarButton>
 						<!-- acorns: リマインダー一覧 -->
 						<LeftSidebarButton
@@ -705,6 +713,12 @@ export default {
 
 		conversationsList() {
 			return this.$store.getters.conversationsList
+		},
+
+		// acorns: 未読のあるスレッドの数(全会話の合計)。「スレッド」ボタンに出す。
+		// スレッド一覧はアーカイブ済みの会話のスレッドも並べるので、ここでも除かない
+		unreadThreadsCount() {
+			return this.conversationsList.reduce((total, conversation) => total + (conversation.unreadThreads ?? 0), 0)
 		},
 
 		sortedConversationsList() {

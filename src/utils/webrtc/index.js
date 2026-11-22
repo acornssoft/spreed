@@ -215,13 +215,21 @@ function setupWebRtc() {
  *
  * @param {string} token Conversation to join
  * @param {string} sessionId Session id to join with
- * @return {Promise<void>}
+ * @param {() => boolean} [isStillWanted] acorns: checked once the signaling settings were fetched,
+ * the room is not joined if it returns false (the conversation was left or joined again meanwhile)
+ * @return {Promise<boolean>} acorns: false if the room was not joined as it is not wanted any more
  */
-async function signalingJoinConversation(token, sessionId) {
+async function signalingJoinConversation(token, sessionId, isStillWanted = () => true) {
 	await connectSignaling(token)
+	// acorns: この判定から joinRoom の呼び出しまでに await を挟まないこと
+	// (挟むと、判定の後に退出した会話の部屋へ入ってしまう)
+	if (!isStillWanted()) {
+		return false
+	}
 	if (tokensInSignaling[token]) {
 		await signaling.joinRoom(token, sessionId)
 	}
+	return true
 }
 
 /**

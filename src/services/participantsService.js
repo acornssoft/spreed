@@ -20,6 +20,13 @@ import {
 
 const PERMISSIONS = PARTICIPANT.PERMISSIONS
 
+// acorns: 会話の切り替えでは入室を await しない(App.vue)。入室の応答を待つ間に次の切り替えで
+// 退出や別の入室が始まると、遅れて届いた古い入室がシグナリングの部屋を奪い、表示中の会話と
+// 入室先がずれる(入力欄が「会話に参加中」のまま戻らない)。最後に始めた入室だけをシグナリングへ進める
+let latestJoinId = 0
+/** いま入室しようとしている、または入室している会話。退出すると null */
+let wantedToken = null
+
 /**
  * Joins the current user to a conversation specified with
  * the token.
@@ -28,11 +35,24 @@ const PERMISSIONS = PARTICIPANT.PERMISSIONS
  * @param {string} data.token The conversation token;
  * @param {boolean} data.forceJoin whether to force join;
  * @param {options} options request options;
+ * @return {Promise<object|null>} the response, or null if the conversation was left
+ * or joined again while the request was pending (acorns)
  */
 async function joinConversation({ token, forceJoin = false }, options) {
+	const joinId = ++latestJoinId
+	wantedToken = token
+	const isLatestJoin = () => joinId === latestJoinId
+
 	const response = await axios.post(generateOcsUrl('apps/spreed/api/v4/room/{token}/participants/active', { token }), {
 		force: forceJoin,
 	}, options)
+
+	if (!isLatestJoin()) {
+		// acorns: 応答を待つ間に退出したか、新しい入室が始まった。この入室はシグナリングへ進めない
+		console.debug('Join of %s was superseded while the request was pending, not joining the signaling room', token)
+		removeSessionOfSupersededJoin(token)
+		return null
+	}
 
 	if (response.headers.get('X-Nextcloud-Bruteforce-Throttled')) {
 		console.error('Remote address is bruteforce throttled: '
@@ -45,9 +65,37 @@ async function joinConversation({ token, forceJoin = false }, options) {
 	}
 
 	// FIXME Signaling should not be synchronous
-	await signalingJoinConversation(token, response.data.ocs.data.sessionId)
+	// acorns: シグナリングの設定を取る間に退出・再入室が始まったら、部屋には入らない(false が返る)
+	const isSignalingJoinDone = await signalingJoinConversation(token, response.data.ocs.data.sessionId, isLatestJoin)
+
+	if (isSignalingJoinDone === false) {
+		console.debug('Join of %s was superseded while the signaling settings were fetched, not joining the signaling room', token)
+		removeSessionOfSupersededJoin(token)
+		return null
+	}
+
+	if (!isLatestJoin()) {
+		// acorns: シグナリングの部屋に入る間に退出・再入室が始まった。後始末はそちらが行う
+		return null
+	}
 
 	return response
+}
+
+/**
+ * acorns: 使われなくなった入室のセッションを消す。
+ * 退出の要求より後にサーバーでセッションが作られていると、消されずに残るため。
+ * 同じ会話に入り直しているときは、新しい入室のセッションを消さないよう何もしない
+ *
+ * @param {string} token The conversation token;
+ */
+function removeSessionOfSupersededJoin(token) {
+	if (wantedToken === token) {
+		return
+	}
+
+	axios.delete(generateOcsUrl('apps/spreed/api/v4/room/{token}/participants/active', { token }))
+		.catch((error) => console.debug('Error while removing the session of a superseded join:', error))
 }
 
 /**
@@ -66,6 +114,12 @@ async function rejoinConversation(token) {
  * @param {string} token The conversation token;
  */
 async function leaveConversation(token) {
+	if (wantedToken === token) {
+		// acorns: 応答待ちの入室があれば無効にする(joinConversation を参照)
+		latestJoinId++
+		wantedToken = null
+	}
+
 	// FIXME Signaling should not be synchronous
 	await signalingLeaveConversation(token)
 

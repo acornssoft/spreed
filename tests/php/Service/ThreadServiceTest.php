@@ -18,6 +18,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IDBConnection;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use Test\TestCase;
 
@@ -113,6 +114,33 @@ class ThreadServiceTest extends TestCase {
 		$this->threadAttendeeMapper->expects($this->never())->method('update');
 
 		$this->service->ensureThreadAttendeeForMention($this->attendee(), 138, 300);
+	}
+
+	/**
+	 * acorns: 既存メッセージをスレッド化するときのスレッド名
+	 */
+	public static function dataGenerateTitleFromText(): array {
+		return [
+			'short text is kept' => ['なんか妙に重くね？', 'なんか妙に重くね？'],
+			'50 characters are kept' => [str_repeat('あ', 50), str_repeat('あ', 50)],
+			'51 characters are cut to 50 and marked' => [str_repeat('あ', 50) . 'い', str_repeat('あ', 50) . '…'],
+			'long ASCII text is cut to 50 and marked' => [str_repeat('a', 120), str_repeat('a', 50) . '…'],
+			'characters outside the BMP count as one' => [str_repeat('😀', 51), str_repeat('😀', 50) . '…'],
+			'line breaks become one space' => ["お疲れ様です。\r\n\r\n本日の定例ですが", 'お疲れ様です。 本日の定例ですが'],
+			'tabs become one space' => ["a\t\tb", 'a b'],
+			'spaces around line breaks are dropped' => ["first  \n   second", 'first second'],
+			'other spaces are kept' => ['a  b　c', 'a  b　c'],
+			'surrounding whitespace is trimmed' => ["  \n hello \n ", 'hello'],
+			'no space is left before the mark' => [str_repeat('a', 49) . ' ' . str_repeat('b', 10), str_repeat('a', 49) . '…'],
+			'line breaks are joined before cutting' => [str_repeat('a', 30) . "\n" . str_repeat('b', 30), str_repeat('a', 30) . ' ' . str_repeat('b', 19) . '…'],
+			'empty text' => ['', ''],
+			'only whitespace' => [" \n\t ", ''],
+		];
+	}
+
+	#[DataProvider('dataGenerateTitleFromText')]
+	public function testGenerateTitleFromText(string $text, string $expected): void {
+		$this->assertSame($expected, $this->service->generateTitleFromText($text));
 	}
 
 	protected function attendee(): Attendee {
