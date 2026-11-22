@@ -28,6 +28,19 @@ import { messagePleaseTryToReload } from './talkDesktopUtils.ts'
 
 const actorStore = useActorStore(pinia)
 
+// acorns: 接続が 1001 (Going Away) で閉じられたとき、ページ自身が離れようとしているのかを見分ける。
+// 1001 はブラウザがページ遷移で閉じるときだけでなく、手前のプロキシ(Cloudflare の
+// "WebSocket proxy restarting" など)やシグナリングサーバの停止でも届く。後者はページが
+// 開いたままなので、つなぎ直さないとリロードするまでシグナリング無しで動き続けてしまう
+let isPageBeingLeft = false
+window.addEventListener('pagehide', () => {
+	isPageBeingLeft = true
+})
+window.addEventListener('pageshow', () => {
+	// bfcache から戻ったとき
+	isPageBeingLeft = false
+})
+
 const Signaling = {
 	Base: {},
 	Internal: {},
@@ -751,7 +764,9 @@ Signaling.Standalone.prototype.connect = function() {
 			this.signalingConnectionError.hideToast()
 			this.signalingConnectionError = null
 		}
-		if (this.socket && event.code !== 1001) {
+		// acorns: 1001 でも、ページを離れる途中でなければつなぎ直す(自分で閉じたときは this.socket が null)
+		const isClosedByLeavingPage = event.code === 1001 && isPageBeingLeft
+		if (this.socket && !isClosedByLeavingPage) {
 			console.debug('Reconnecting socket as the connection was closed unexpected')
 			this.reconnect()
 		}
