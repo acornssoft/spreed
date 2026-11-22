@@ -35,6 +35,7 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\RequestHeader;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Comments\IComment;
 use OCP\Comments\NotFoundException;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -321,8 +322,8 @@ class ThreadController extends AEnvironmentAwareOCSController {
 			return new DataResponse(['error' => 'exists'], Http::STATUS_BAD_REQUEST);
 		}
 
-		// タイトルは本文から自動生成。createThread が 203 文字で切る
-		$title = trim($comment->getMessage());
+		// タイトルは本文から自動生成(50 文字で切る)
+		$title = $this->threadService->generateTitleFromText($this->getTextForGeneratedTitle($comment));
 		if ($title === '') {
 			$title = $this->l->t('Thread');
 		}
@@ -378,6 +379,36 @@ class ThreadController extends AEnvironmentAwareOCSController {
 		/** @var TalkThreadInfo $threadInfo */
 		$threadInfo = array_shift($list);
 		return new DataResponse($threadInfo);
+	}
+
+	/**
+	 * acorns: スレッド名の元にする文字列。
+	 *
+	 * ファイル共有・投票・位置情報などは、本文が JSON で保存されている
+	 * ({"message":"file_shared","parameters":{…}})。そのままスレッド名にすると JSON が出るので、
+	 * 画面に出るのと同じ形に直す(ファイルなら添付の説明文、無ければファイル名。投票なら質問文)。
+	 * 通常のメッセージは保存されている本文のまま使う
+	 */
+	protected function getTextForGeneratedTitle(IComment $comment): string {
+		if ($comment->getVerb() !== ChatManager::VERB_OBJECT_SHARED) {
+			return $comment->getMessage();
+		}
+
+		$message = $this->messageParser->createMessage($this->room, $this->participant, $comment, $this->l);
+		$this->messageParser->parseMessage($message);
+
+		// 通知の本文(Notifier::parseChatMessage)と同じ置き換え方
+		$placeholders = $replacements = [];
+		foreach ($message->getMessageParameters() as $placeholder => $parameter) {
+			$placeholders[] = '{' . $placeholder . '}';
+			if ($parameter['type'] === 'user' || $parameter['type'] === 'guest') {
+				$replacements[] = '@' . $parameter['name'];
+			} else {
+				$replacements[] = $parameter['name'];
+			}
+		}
+
+		return str_replace($placeholders, $replacements, $message->getMessage());
 	}
 
 	/**

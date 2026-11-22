@@ -37,6 +37,26 @@ class ThreadService {
 		$this->cache = $this->cacheFactory->createDistributed('talk.threads');
 	}
 
+	/**
+	 * acorns: 既存メッセージをスレッド化するときに、本文から付けるスレッド名の長さ。
+	 * これを超えたら切って「…」を付ける。利用者が自分で付ける名前の上限(createThread の 200 文字)とは別
+	 */
+	public const GENERATED_TITLE_MAX_LENGTH = 50;
+
+	/**
+	 * acorns: メッセージの本文からスレッド名を作る。
+	 * スレッド名は一覧やシステムメッセージで 1 行に出るので、改行とタブは 1 つの空白にまとめる
+	 *
+	 * @return string 本文が空白だけなら空文字
+	 */
+	public function generateTitleFromText(string $text): string {
+		$title = trim(preg_replace('/\s*[\r\n\t]+\s*/u', ' ', $text) ?? $text);
+		if (mb_strlen($title) > self::GENERATED_TITLE_MAX_LENGTH) {
+			$title = rtrim(mb_substr($title, 0, self::GENERATED_TITLE_MAX_LENGTH)) . '…';
+		}
+		return $title;
+	}
+
 	public function createThread(Room $room, int $threadId, string $title): Thread {
 		if (mb_strlen($title) > 203) {
 			$title = mb_substr($title, 0, 200) . '…';
