@@ -631,4 +631,61 @@ describe('LeftSidebar.vue', () => {
 			expect(wrapper.vm.showRemindersList).toBe(false)
 		})
 	})
+
+	// acorns: 「スレッド」ボタンに、未読のあるスレッドの数を出す
+	describe('unread threads on the Threads button (acorns)', () => {
+		/**
+		 * @param {number[]} unreadThreads number of threads with unread messages, per conversation
+		 */
+		function mountWithUnreadThreads(unreadThreads) {
+			conversationsListMock.mockImplementation(() => unreadThreads.map((count, index) => ({
+				id: index + 1,
+				token: `t${index + 1}`,
+				lastActivity: 100 + index,
+				isFavorite: false,
+				// Threads of archived conversations are listed as well
+				isArchived: index === 0,
+				name: `conversation ${index + 1}`,
+				displayName: `conversation ${index + 1}`,
+				unreadThreads: count,
+			})))
+
+			const wrapper = mountComponent()
+			const button = wrapper.findAllComponents({ name: 'LeftSidebarButton' })
+				.find((b) => b.text().includes('Threads'))
+			return { wrapper, button }
+		}
+
+		test('shows the number of threads with unread messages of all conversations', () => {
+			const { button } = mountWithUnreadThreads([2, 0, 3])
+
+			const counter = button.findComponent({ name: 'NcCounterBubble' })
+			expect(counter.exists()).toBe(true)
+			expect(counter.props('count')).toBe(5)
+		})
+
+		test('shows no counter when no thread has unread messages', () => {
+			const { button } = mountWithUnreadThreads([0, 0])
+
+			expect(button.findComponent({ name: 'NcCounterBubble' }).exists()).toBe(false)
+		})
+
+		test('shows no counter for conversations without the information', () => {
+			conversationsListMock.mockImplementation(() => [{
+				id: 1,
+				token: 't1',
+				lastActivity: 100,
+				isFavorite: false,
+				isArchived: false,
+				name: 'one',
+				displayName: 'one',
+			}])
+
+			const wrapper = mountComponent()
+			const button = wrapper.findAllComponents({ name: 'LeftSidebarButton' })
+				.find((b) => b.text().includes('Threads'))
+
+			expect(button.findComponent({ name: 'NcCounterBubble' }).exists()).toBe(false)
+		})
+	})
 })
