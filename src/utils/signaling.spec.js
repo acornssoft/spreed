@@ -58,6 +58,7 @@ vi.mock('./e2ee/encryption.js', () => ({
 	},
 }))
 
+import store from '../store/index.js'
 import Signaling from './signaling.js'
 
 // Close codes of the WebSocket protocol (RFC 6455, section 7.4.1)
@@ -171,5 +172,91 @@ describe('Signaling.Standalone connection', () => {
 
 		expect(socket.closed).toBe(true)
 		expect(FakeWebSocket.instances).toHaveLength(1)
+	})
+})
+
+describe('Signaling.Standalone rejected join of a room', () => {
+	const settings = {
+		token: 'TOKEN',
+		signalingMode: 'external',
+		server: 'https://signaling.example.org/',
+		helloAuthParams: {
+			'1.0': { userid: 'alice', ticket: 'ticket' },
+		},
+	}
+
+	let originalWebSocket
+	let signaling
+	let socket
+
+	/**
+	 * Answer the join of the given room as the signaling server does when
+	 * Nextcloud does not know the session that was sent with it.
+	 *
+	 * @param {string} token conversation token of the join to reject
+	 */
+	function rejectJoin(token) {
+		const join = socket.sent.findLast((message) => message.type === 'room' && message.room.roomid === token)
+		socket.onmessage({
+			data: JSON.stringify({
+				id: join.id,
+				type: 'error',
+				error: { code: 'no_such_room', message: 'The user is not invited to this room.' },
+			}),
+		})
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		originalWebSocket = globalThis.WebSocket
+		globalThis.WebSocket = FakeWebSocket
+		FakeWebSocket.instances = []
+
+		signaling = Signaling.createConnection(settings)
+		socket = FakeWebSocket.instances[0]
+		socket.onopen({})
+		const hello = socket.sent.find((message) => message.type === 'hello')
+		socket.onmessage({
+			data: JSON.stringify({
+				id: hello.id,
+				type: 'hello',
+				hello: { sessionid: 'signaling-session', resumeid: 'resume-id', server: { features: [] } },
+			}),
+		})
+	})
+
+	afterEach(() => {
+		signaling.disconnect()
+		globalThis.WebSocket = originalWebSocket
+		vi.restoreAllMocks()
+	})
+
+	test('joins the conversation again with a new session when the join of the current room is rejected', async () => {
+		await signaling.joinRoom('ROOM_A', 'session-a')
+		rejectJoin('ROOM_A')
+
+		expect(store.dispatch).toHaveBeenCalledExactlyOnceWith('joinConversation', { token: 'ROOM_A' })
+	})
+
+	// acorns: when conversations are switched quickly the answer to the join of
+	// a room that was left already can arrive late. Joining "the current room"
+	// again then is at best not needed, and it is wrong when the room that was
+	// left is still the current one for the signaling.
+	test('does not join again when the rejected join is of a room that is not the current one any more', async () => {
+		await signaling.joinRoom('ROOM_B', 'session-b')
+		await signaling.joinRoom('ROOM_C', 'session-c')
+		rejectJoin('ROOM_B')
+
+		expect(store.dispatch).not.toHaveBeenCalled()
+	})
+
+	test('does not join again when the rejected join is of a room that was left meanwhile', async () => {
+		await signaling.joinRoom('ROOM_B', 'session-b')
+		signaling.leaveCurrentRoom()
+		await Promise.resolve()
+		rejectJoin('ROOM_B')
+
+		expect(store.dispatch).not.toHaveBeenCalled()
 	})
 })

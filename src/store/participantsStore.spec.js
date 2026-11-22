@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { showError } from '@nextcloud/dialogs'
 import { emit } from '@nextcloud/event-bus'
 import Hex from 'crypto-js/enc-hex.js'
 import SHA1 from 'crypto-js/sha1.js'
@@ -988,6 +989,22 @@ describe('participantsStore', () => {
 				.toStrictEqual(updatedParticipantData)
 
 			expect(joinedConversationEventMock).toHaveBeenCalledWith({ token: TOKEN })
+		})
+
+		// acorns: the service gives no response when the conversation was left or
+		// joined again while the request was pending
+		test('ignores a join that was superseded while the request was pending', async () => {
+			store = createStore(testStoreConfig)
+			joinConversation.mockResolvedValue(null)
+			showError.mockClear()
+
+			const returnedResponse = await store.dispatch('joinConversation', { token: TOKEN })
+
+			expect(returnedResponse).toBeUndefined()
+			expect(showError).not.toHaveBeenCalled()
+			expect(SessionStorage.getItem('joined_conversation')).toBe(null)
+			expect(testStoreConfig.actions.addConversation).not.toHaveBeenCalled()
+			expect(joinedConversationEventMock).not.toHaveBeenCalled()
 		})
 
 		describe('force join on error', () => {

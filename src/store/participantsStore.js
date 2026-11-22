@@ -1091,6 +1091,12 @@ const actions = {
 		try {
 			const response = await joinConversation({ token, forceJoin })
 
+			if (!response) {
+				// acorns: 応答を待つ間に退出したか、新しい入室が始まった。
+				// 古い入室の結果でセッションや入室済みの記録を書き換えない
+				return
+			}
+
 			// Update the participant and actor session after a force join
 			actorStore.setCurrentParticipant(response.data.ocs.data)
 			context.dispatch('addConversation', response.data.ocs.data)
